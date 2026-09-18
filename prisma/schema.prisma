@@ -44,8 +44,9 @@ model Settings {
 
 model Photo {
   id           String    @id @default(cuid())
-  filename     String // stored filename on disk (uploads/)
+  filename     String // stored filename on disk (uploads/ or data/photos/)
   thumbname    String    @default("") // stored thumbnail (uploads/thumbs/)
+  location     String    @default("uploads") // "uploads" (dashboard) | "data" (committed repo folder)
   originalName String
   description  String    @default("")
   mimeType     String    @default("image/jpeg")

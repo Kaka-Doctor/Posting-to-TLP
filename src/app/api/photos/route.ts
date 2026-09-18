@@ -8,7 +8,7 @@ import sharp from 'sharp'
 
 export const dynamic = 'force-dynamic'
 
-const UPLOADS_DIR = '/home/z/my-project/uploads'
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 const THUMBS_DIR = path.join(UPLOADS_DIR, 'thumbs')
 const MAX_BYTES = 8 * 1024 * 1024 // Instagram API limit
 

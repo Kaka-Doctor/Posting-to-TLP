@@ -34,10 +34,17 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Photo not found' }, { status: 404 })
   }
 
-  const UPLOADS_DIR = '/home/z/my-project/uploads'
+  const dirs =
+    photo.location === 'data'
+      ? [path.join(process.cwd(), 'data', 'photos')]
+      : [path.join(process.cwd(), 'uploads')]
   try {
-    await fs.unlink(path.join(UPLOADS_DIR, photo.filename))
-    if (photo.thumbname) await fs.unlink(path.join(UPLOADS_DIR, 'thumbs', photo.thumbname)).catch(() => {})
+    for (const dir of dirs) {
+      await fs.unlink(path.join(dir, photo.filename)).catch(() => {})
+      if (photo.thumbname) {
+        await fs.unlink(path.join(dir, 'thumbs', photo.thumbname)).catch(() => {})
+      }
+    }
   } catch {
     /* disk cleanup is best-effort */
   }

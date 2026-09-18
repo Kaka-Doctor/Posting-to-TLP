@@ -29,6 +29,8 @@ async function chat(settings: Settings, messages: Array<{ role: string; content:
       Authorization: `Bearer ${settings.groqApiKey}`,
     },
     body: JSON.stringify({ model: settings.groqModel, messages }),
+    // Never let a slow/hung Groq call block a scheduled post
+    signal: AbortSignal.timeout(25000),
   })
   const json = (await res.json().catch(() => ({}))) as {
     choices?: Array<{ message?: { content?: string } }>

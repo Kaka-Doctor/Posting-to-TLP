@@ -5,8 +5,22 @@ import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
-const UPLOADS_DIR = '/home/z/my-project/uploads'
-const THUMB_DIR = path.join(UPLOADS_DIR, 'thumbs')
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
+const DATA_PHOTOS_DIR = path.join(process.cwd(), 'data', 'photos')
+
+function resolvePath(location: string, filename: string, thumb: boolean): string {
+  if (location === 'data') {
+    // Photos committed in the repo (data/photos) — served as-is (no thumbnails)
+    return path.join(DATA_PHOTOS_DIR, filename)
+  }
+  return thumb ? path.join(UPLOADS_DIR, 'thumbs', filename) : path.join(UPLOADS_DIR, filename)
+}
+
+function jpegResponse(buf: Buffer) {
+  return new NextResponse(new Uint8Array(buf), {
+    headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' },
+  })
+}
 
 /**
  * PUBLIC image endpoint. Instagram/Facebook servers download the photo
@@ -20,26 +34,23 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const wantThumb = new URL(request.url).searchParams.get('size') === 'thumb'
-  const filename = wantThumb && photo.thumbname ? path.join(THUMB_DIR, photo.thumbname) : path.join(UPLOADS_DIR, photo.filename)
+  const primary = resolvePath(photo.location, photo.filename, wantThumb && Boolean(photo.thumbname))
 
   try {
-    const buf = await fs.readFile(filename)
-    return new NextResponse(new Uint8Array(buf), {
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Cache-Control': 'public, max-age=3600',
-      },
-    })
+    return jpegResponse(await fs.readFile(primary))
   } catch {
-    // Thumb missing → fall back to the original
-    try {
-      const buf = await fs.readFile(path.join(UPLOADS_DIR, photo.filename))
-      return new NextResponse(new Uint8Array(buf), {
-        headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600' },
-      })
-    } catch {
-      return NextResponse.json({ error: 'File missing on disk' }, { status: 404 })
+    // Thumb missing or wrong dir → always fall back to the original file
+    for (const candidate of [
+      resolvePath(photo.location, photo.filename, false),
+      path.join(UPLOADS_DIR, photo.filename),
+      path.join(DATA_PHOTOS_DIR, photo.filename),
+    ]) {
+      try {
+        return jpegResponse(await fs.readFile(candidate))
+      } catch {
+        /* try next */
+      }
     }
+    return NextResponse.json({ error: 'File missing on disk' }, { status: 404 })
   }
 }
-

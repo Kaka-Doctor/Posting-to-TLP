@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSettings, targetsConfigured, minutesUntilNextSlot, localNow } from '@/lib/settings'
-import { schedulerInfo } from '@/lib/scheduler'
+import { schedulerInfo, startScheduler } from '@/lib/scheduler'
+import { ensureDb } from '@/lib/importer'
 import { checkPageHealth } from '@/lib/meta'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
+  await ensureDb()
+  startScheduler() // lazy start (idempotent) in case instrumentation hook missed
   const s = await getSettings()
   const targets = targetsConfigured(s)
 
