@@ -45,7 +45,7 @@ export default function Home() {
             <div className="min-w-0 flex-1">
               <h1 className="text-lg font-semibold tracking-tight sm:text-xl">Auto-Poster Agent</h1>
               <p className="text-xs text-emerald-100/90 sm:text-sm">
-                Instagram + Facebook · 3 posts a day · powered by Groq
+                Instagram + Facebook · 3 posts a day · your content, posted as-is
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">

@@ -5,18 +5,11 @@ export const GRAPH_API = 'https://graph.facebook.com/v21.0'
 
 /**
  * Returns the singleton settings row, creating it on first access.
- * The Groq key is seeded from env on first creation (then editable in Setup).
  */
 export async function getSettings(): Promise<Settings> {
   let settings = await db.settings.findUnique({ where: { id: 'settings' } })
   if (!settings) {
-    settings = await db.settings.create({
-      data: {
-        id: 'settings',
-        groqApiKey: process.env.GROQ_API_KEY ?? '',
-        groqModel: process.env.GROQ_MODEL ?? 'groq/compound',
-      },
-    })
+    settings = await db.settings.create({ data: { id: 'settings' } })
   }
   return settings
 }

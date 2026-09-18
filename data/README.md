@@ -2,7 +2,7 @@
 
 This is the folder where you drop everything the agent needs. **Every file here is picked up automatically** when the agent starts, and you can also re-scan it any time with the **"Scan data folder"** button in the dashboard (Photos tab) or by calling `POST /api/import`.
 
-After adding files on your own computer: commit + push to GitHub, and Vercel redeploys with the new content in seconds.
+After adding files on your own computer: commit + push to GitHub, and Vercel/Netlify redeploys with the new content in seconds.
 
 ---
 
@@ -12,18 +12,9 @@ Drop your photos for posting here.
 
 - **Format:** `.jpg` / `.jpeg` only (Instagram requirement)
 - **Size:** at least 320 px wide, at most 8 MB per photo
-- **Naming:** any filename, e.g. `monday-lesson.jpg` — the AI uses the filename as a hint when matching photos to captions
-- **Optional description:** create a text file with the **same name plus `.txt`** to describe the photo — the AI reads it and uses it to pick the best photo-caption pair:
+- **Naming:** any filename, e.g. `monday-lesson.jpg`
 
-```
-data/photos/
-├── monday-lesson.jpg
-├── monday-lesson.jpg.txt      ← optional: "Grade 5 fractions lesson plan slide"
-├── classroom-decor.jpeg
-└── classroom-decor.jpeg.txt   ← optional: "Bright reading corner setup"
-```
-
-Photos are used **in rotation** (least-recently-used first) and the AI prefers photos that have been used less often, so nothing gets over-posted.
+Photos are used **in rotation** (least-recently-used first), so nothing gets over-posted.
 
 > Tip: a `SAMPLE-*.jpg` file may be included here so you can test immediately — delete it once you add your own photos.
 
@@ -44,17 +35,32 @@ Third caption here.
 ```
 
 - Keep each caption between 2 and 2200 characters (Instagram limit).
+- Captions are posted **exactly as written** — nothing is rewritten.
 - Empty sections and duplicates are ignored automatically, so you can edit this file freely and re-scan.
 
-## 3. Keys & tokens → `data/config.json`
+## 3. The switch file → `data/config.json`
 
-Everything else the agent needs (your Meta token, App ID, App Secret, Groq key, timezone, posting times, and the saved page connection) lives in `data/config.json`. A ready-to-edit template is in `data/config.example.json`.
+Everything you might change later lives in this **one file**:
 
-This file **is committed to the repo** (which is private) so your Vercel deployment works with zero manual setup — on every cold start the agent restores the "Teacher's Lesson Plan" + Instagram connection directly from it. If you ever make the repo public, move these values to Vercel → Settings → Environment Variables and delete this file from git (the main README.md shows exactly which variables to create).
+| Field | What it is |
+|---|---|
+| `metaUserToken` | Your Facebook access token (the master key) |
+| `appId` / `appSecret` | Your Meta app credentials |
+| **`pageId`** | **The page the agent posts to — change this to switch pages** |
+| `pageName`, `igUserId`, `igUsername` | Informational — auto-refreshed on connect |
+| `timezone`, `slots` | The schedule (default 06:00, 12:00, 18:00 EAT) |
+
+This file **is committed to the repo** (which is private) so your Vercel/Netlify deployment works with zero manual setup. If you ever make the repo public, move these values to host environment variables and delete this file from git (the main README.md shows exactly which variables to create).
+
+### Switching to another page
+
+1. Open `data/config.json`.
+2. Change `pageId` to the new page's ID (the `_readme` field inside the file lists all your pages and their IDs — e.g. `Ladies Of Destiny=710815315448548`). You can also set just `igUsername` and leave `pageId` empty.
+3. Commit + push. On the next start or cron hit the agent notices the change, fetches the new page's access token from Meta, and starts posting there. Photos, captions, and the schedule carry over unchanged.
 
 ## What happens after you drop files
 
 1. The agent scans this folder at startup (and on every "Scan data folder" click).
 2. New photos and captions are added to the library — existing ones are skipped, nothing is duplicated.
-3. At each posting time (default **6:00, 12:00, 18:00** EAT) the agent asks Groq to pick the best photo + caption combo, then posts to **Instagram and Facebook at the same time**.
-4. **If Groq ever fails, the agent still posts** — it falls back to its own rotation picker, so your pages never go silent.
+3. At each posting time (default **6:00, 12:00, 18:00** EAT) the agent takes the least-recently-used photo + caption and posts to **Instagram and Facebook at the same time**, caption exactly as written.
+4. If one platform errors, the other still gets its post — the failure is recorded in the history with the exact reason.

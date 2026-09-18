@@ -3,11 +3,6 @@ export interface StatusResponse {
   timezone: string
   slots: string
   graceMinutes: number
-  aiEnabled: boolean
-  aiEnhanceCaptions: boolean
-  groqModel: string
-  groqKeySet: boolean
-  pageTheme: string
   connected: {
     instagram: boolean
     facebook: boolean
@@ -66,7 +61,7 @@ export interface PostItem {
   igError: string
   fbPermalink: string
   fbError: string
-  aiReason: string
+  pickNote: string
   createdAt: string
 }
 

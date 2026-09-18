@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             id: result.post.id,
             status: result.post.status,
             caption: result.post.finalCaption,
-            aiReason: result.post.aiReason,
+            pickNote: result.post.aiReason,
             igPermalink: result.post.igPermalink,
             fbPermalink: result.post.fbPermalink,
             igError: result.post.igError,

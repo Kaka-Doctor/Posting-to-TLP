@@ -96,7 +96,7 @@ export function PhotosTab({ onRefresh }: { onRefresh: () => void }) {
         body: JSON.stringify({ description: draftDesc }),
       })
       if (res.ok) {
-        toast.success('Photo description saved — helps Groq pick better matches')
+        toast.success('Photo description saved')
         setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, description: draftDesc } : p)))
         setEditing(null)
       } else {
@@ -147,7 +147,7 @@ export function PhotosTab({ onRefresh }: { onRefresh: () => void }) {
               <div className="flex-1">
                 <p className="font-medium">Add photos to the library</p>
                 <p className="text-xs text-muted-foreground">
-                  JPEG only · max 8MB · at least 320px wide (Instagram rules). A short description per photo helps Groq match captions better.
+                  JPEG only · max 8MB · at least 320px wide (Instagram rules).
                 </p>
               </div>
             </div>

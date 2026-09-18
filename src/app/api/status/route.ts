@@ -48,11 +48,6 @@ export async function GET(request: Request) {
     timezone: s.timezone,
     slots: s.slots,
     graceMinutes: s.graceMinutes,
-    aiEnabled: s.aiEnabled,
-    aiEnhanceCaptions: s.aiEnhanceCaptions,
-    groqModel: s.groqModel,
-    groqKeySet: Boolean(s.groqApiKey),
-    pageTheme: s.pageTheme,
     connected: {
       instagram: targets.instagram,
       facebook: targets.facebook,

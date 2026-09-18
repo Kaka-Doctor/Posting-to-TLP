@@ -22,7 +22,7 @@ export async function GET() {
       igError: p.igError,
       fbPermalink: p.fbPermalink,
       fbError: p.fbError,
-      aiReason: p.aiReason,
+      pickNote: p.aiReason,
       createdAt: p.createdAt,
     }))
   )

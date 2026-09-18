@@ -5,13 +5,12 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Loader2, Link2, Clock, Sparkles, ChevronDown, CircleCheck, CircleAlert, KeyRound, Save } from 'lucide-react'
+import { Loader2, Link2, Clock, ChevronDown, CircleCheck, CircleAlert, Save } from 'lucide-react'
 import type { StatusResponse } from './types'
 
 interface PageOption {
@@ -37,13 +36,7 @@ export function SetupTab({ status, onRefresh }: { status: StatusResponse | null;
   const [slots, setSlots] = useState('06:00,12:00,18:00')
   const [timezone, setTimezone] = useState('Africa/Dar_es_Salaam')
   const [graceMinutes, setGraceMinutes] = useState(60)
-  const [aiEnabled, setAiEnabled] = useState(true)
-  const [aiEnhance, setAiEnhance] = useState(false)
-  const [groqModel, setGroqModel] = useState('groq/compound')
-  const [groqKey, setGroqKey] = useState('')
-  const [pageTheme, setPageTheme] = useState('')
   const [saving, setSaving] = useState(false)
-  const [testingAi, setTestingAi] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -55,10 +48,6 @@ export function SetupTab({ status, onRefresh }: { status: StatusResponse | null;
         setSlots(s.slots)
         setTimezone(s.timezone)
         setGraceMinutes(s.graceMinutes)
-        setAiEnabled(s.aiEnabled)
-        setAiEnhance(s.aiEnhanceCaptions)
-        setGroqModel(s.groqModel)
-        setPageTheme(s.pageTheme)
         setLoaded(true)
       })
       .catch(() => setLoaded(true))
@@ -131,11 +120,7 @@ export function SetupTab({ status, onRefresh }: { status: StatusResponse | null;
   async function saveSettings() {
     setSaving(true)
     try {
-      const payload: Record<string, unknown> = {
-        autoPost, slots, timezone, graceMinutes, aiEnabled,
-        aiEnhanceCaptions: aiEnhance, groqModel, pageTheme,
-      }
-      if (groqKey.trim()) payload.groqApiKey = groqKey.trim()
+      const payload: Record<string, unknown> = { autoPost, slots, timezone, graceMinutes }
       const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -144,7 +129,6 @@ export function SetupTab({ status, onRefresh }: { status: StatusResponse | null;
       const json = await res.json()
       if (res.ok) {
         toast.success('Settings saved — the agent picks them up within 30 seconds')
-        setGroqKey('')
         onRefresh()
       } else {
         toast.error(json.error ?? 'Could not save settings')
@@ -153,20 +137,6 @@ export function SetupTab({ status, onRefresh }: { status: StatusResponse | null;
       toast.error('Could not save settings')
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function testAi() {
-    setTestingAi(true)
-    try {
-      const res = await fetch('/api/ai/test', { method: 'POST' })
-      const json = await res.json()
-      if (json.ok) toast.success(json.message)
-      else toast.error(json.message ?? 'Groq test failed')
-    } catch {
-      toast.error('Groq test failed')
-    } finally {
-      setTestingAi(false)
     }
   }
 
@@ -320,47 +290,21 @@ export function SetupTab({ status, onRefresh }: { status: StatusResponse | null;
         </CardContent>
       </Card>
 
-      {/* ---------- 3. AI ---------- */}
+      {/* ---------- 3. Rotation note ---------- */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Sparkles className="h-4 w-4 text-amber-500" aria-hidden /> AI (Groq)
+            <Clock className="h-4 w-4 text-emerald-600" aria-hidden /> How content is picked
           </CardTitle>
-          <CardDescription>Groq reads your photo descriptions and caption bank, then picks the best pair for each slot.</CardDescription>
+          <CardDescription>
+            No AI involved: at each slot time the agent takes the photo and caption used the longest ago, posts your caption exactly as written, then moves them to the back of the queue.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div>
-              <p className="font-medium">AI selection</p>
-              <p className="text-xs text-muted-foreground">Off = simple rotation (least-recently-used)</p>
-            </div>
-            <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} aria-label="Toggle AI selection" />
-          </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div>
-              <p className="font-medium">Polish captions with AI</p>
-              <p className="text-xs text-muted-foreground">Groq lightly rewrites your caption (emoji + hashtags) before posting</p>
-            </div>
-            <Switch checked={aiEnhance} onCheckedChange={setAiEnhance} aria-label="Toggle AI caption polishing" />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="model">Model</Label>
-              <Input id="model" value={groqModel} onChange={(e) => setGroqModel(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="groqkey">Groq API key {status?.groqKeySet ? '(set — paste only to replace)' : ''}</Label>
-              <Input id="groqkey" type="password" value={groqKey} onChange={(e) => setGroqKey(e.target.value)} placeholder={status?.groqKeySet ? '••••••••••••' : 'gsk_…'} autoComplete="off" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="theme">What your page is about (guides AI matching)</Label>
-            <Textarea id="theme" value={pageTheme} onChange={(e) => setPageTheme(e.target.value)} rows={2} className="text-sm" />
-          </div>
-          <Button variant="outline" onClick={testAi} disabled={testingAi}>
-            {testingAi ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <KeyRound className="h-4 w-4" aria-hidden />}
-            Test Groq connection
-          </Button>
+        <CardContent>
+          <p className="text-xs text-muted-foreground">
+            To post to a different page, edit <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">pageId</code> in
+            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">data/config.json</code> (see the README in the data folder) and push — the agent re-connects automatically.
+          </p>
         </CardContent>
       </Card>
 

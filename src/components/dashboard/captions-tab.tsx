@@ -171,7 +171,7 @@ export function CaptionsTab({ onRefresh }: { onRefresh: () => void }) {
             <MessageSquareText className="h-8 w-8 text-zinc-300 dark:text-zinc-600" aria-hidden />
             <p className="font-medium">Your caption bank is empty</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Add the captions the agent should post. Groq will pick the best caption for each photo and time slot.
+              Add the captions the agent should post. Each slot takes the caption used the longest ago and posts it exactly as written.
             </p>
           </CardContent>
         </Card>

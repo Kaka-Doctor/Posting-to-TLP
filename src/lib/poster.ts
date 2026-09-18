@@ -1,18 +1,11 @@
 import { db } from '@/lib/db'
-import { getSettings, log, localNow, targetsConfigured } from '@/lib/settings'
-import { pickPair, enhanceCaption } from '@/lib/groq'
+import { getSettings, log, targetsConfigured } from '@/lib/settings'
 import { publishToInstagram, publishToFacebook, minutesSinceLastPost } from '@/lib/meta'
 import type { Photo, Caption, Post } from '@prisma/client'
 
 const globalForPoster = globalThis as unknown as { __posterRunning: boolean }
 
-function timeOfDayFor(minutesOfDay: number): 'morning' | 'midday' | 'evening' {
-  if (minutesOfDay < 10 * 60) return 'morning'
-  if (minutesOfDay < 15 * 60) return 'midday'
-  return 'evening'
-}
-
-/** Least-recently-used ordering used by the sequential (non-AI) picker */
+/** Least-recently-used ordering used by the sequential picker */
 const LRU = [{ timesUsed: 'asc' as const }, { lastUsedAt: 'asc' as const }]
 
 export interface RunOutcome {
@@ -22,17 +15,15 @@ export interface RunOutcome {
 }
 
 export interface RunOptions {
-  /** Select photo + caption (AI or fallback) but do NOT publish anything */
+  /** Select photo + caption but do NOT publish anything */
   dryRun?: boolean
 }
 
 /**
  * Runs one full posting cycle:
- * select photo + caption (AI or sequential) -> publish to Instagram + Facebook -> record history.
- *
- * Resilience guarantee: every AI step is wrapped in try/catch with a
- * sequential-rotation fallback — if Groq is down, wrong, or slow, the post
- * still goes out using the least-recently-used photo + caption.
+ * pick the least-recently-used photo + caption -> publish to Instagram +
+ * Facebook -> record history. Captions are posted exactly as written in
+ * your caption bank — nothing is rewritten.
  */
 export async function runPostingJob(
   slotKey: string,
@@ -72,47 +63,13 @@ export async function runPostingJob(
       return { ok: false, post, message: `Nothing to post: ${why}` }
     }
 
-    // ---- Pick photo + caption ----
-    let photo: Photo = photos[0]
-    let caption: Caption = captions[0]
-    let aiReason = 'Sequential rotation (least-recently-used)'
+    // ---- Pick photo + caption (simple rotation, least-recently-used first) ----
+    const photo: Photo = photos[0]
+    const caption: Caption = captions[0]
+    const aiReason = 'Rotation pick (least-recently-used photo + caption)'
 
-    if (settings.aiEnabled && settings.groqApiKey) {
-      try {
-        const now = localNow(settings.timezone)
-        const choice = await pickPair(
-          settings,
-          slotLabel,
-          timeOfDayFor(now.minutesOfDay),
-          photos.map((p) => ({
-            id: p.id,
-            name: p.originalName,
-            description: p.description || p.originalName,
-            timesUsed: p.timesUsed,
-          })),
-          captions.map((c) => ({ id: c.id, text: c.text, timesUsed: c.timesUsed }))
-        )
-        photo = photos.find((p) => p.id === choice.photoId) ?? photos[0]
-        caption = captions.find((c) => c.id === choice.captionId) ?? captions[0]
-        aiReason = `AI pick: ${choice.reason}`
-        await log('info', `${slotLabel}: Groq chose photo "${photo.originalName}" + caption "${caption.text.slice(0, 40)}..." — ${choice.reason}`)
-      } catch (e) {
-        aiReason = `AI failed, fell back to rotation: ${e instanceof Error ? e.message : 'unknown'}`
-        await log('error', `${slotLabel}: Groq selection failed → sequential fallback (${e instanceof Error ? e.message : 'unknown'})`)
-      }
-    }
-
-    // ---- Final caption (optional AI polish) ----
-    let finalCaption = caption.text
-    if (settings.aiEnabled && settings.aiEnhanceCaptions && settings.groqApiKey) {
-      try {
-        finalCaption = await enhanceCaption(settings, caption.text)
-        await log('info', `${slotLabel}: Caption polished by Groq`)
-      } catch (e) {
-        finalCaption = caption.text
-        await log('error', `${slotLabel}: Caption polish failed → using original (${e instanceof Error ? e.message : 'unknown'})`)
-      }
-    }
+    // ---- Final caption: posted verbatim, exactly as written ----
+    const finalCaption = caption.text
 
     // ---- Public image URL (Meta servers download the image from here) ----
     const baseUrl = settings.publicBaseUrl.replace(/\/$/, '')
@@ -173,11 +130,11 @@ export async function runPostingJob(
 
     // ---- Duplicate-post guard ----
     // A persistent database already dedupes by slot. On serverless hosts
-    // (Vercel) the database resets between invocations, so we ask Meta when
-    // the last post actually went out before publishing again.
+    // (Vercel, Netlify) the database resets between invocations, so we ask Meta
+    // when the last post actually went out before publishing again.
     const guardMinutes =
       source === 'auto'
-        ? process.env.VERCEL
+        ? process.env.VERCEL || process.env.NETLIFY
           ? Number(process.env.DEDUP_GUARD_MINUTES ?? 30)
           : 0
         : 3

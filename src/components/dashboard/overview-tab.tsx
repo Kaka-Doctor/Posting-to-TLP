@@ -63,7 +63,7 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
       })
       const json = await res.json()
       if (json.ok) {
-        toast.success(json.message, { description: json.post?.aiReason?.slice(0, 160) })
+        toast.success(json.message, { description: json.post?.pickNote?.slice(0, 160) })
       } else {
         toast.error(json.message, { description: json.post?.igError || json.post?.fbError || '' })
       }
@@ -142,11 +142,6 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
               <Badge variant={status?.scheduler.started ? 'default' : 'secondary'} className={status?.scheduler.started ? 'bg-teal-600 hover:bg-teal-600' : ''}>
                 {status?.scheduler.started ? 'Scheduler live' : 'Scheduler starting…'}
               </Badge>
-              {status?.aiEnabled && (
-                <Badge variant="secondary" className="border border-amber-300 text-amber-700 dark:text-amber-300">
-                  Groq {status.groqModel}
-                </Badge>
-              )}
               <span className="ml-auto hidden text-xs text-muted-foreground sm:block">
                 Local time: {status?.activity.localTime ?? '—'}
               </span>
@@ -201,7 +196,7 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
                 <AlertDialogHeader>
                   <AlertDialogTitle>Post to Instagram + Facebook now?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    The agent will pick one photo and one caption right now (Groq chooses the pair if AI is on) and publish to every connected platform. This does not affect the scheduled 3 daily slots.
+                    The agent will take the least-recently-used photo and caption, post the caption exactly as written, and publish to every connected platform. This does not affect the scheduled 3 daily slots.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -222,7 +217,7 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
               </Button>
             </div>
             <p className="text-center text-xs text-muted-foreground">
-              <span className="font-medium">Test pick</span> runs the full selection (AI or fallback) without publishing — a safe way to watch the agent think.
+              <span className="font-medium">Test pick</span> shows which photo and caption the rotation would post — without publishing anything.
             </p>
           </CardContent>
         </Card>
@@ -288,8 +283,8 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
                     </TableCell>
                     <TableCell className="hidden max-w-72 md:table-cell">
                       <div className="truncate text-sm" title={p.finalCaption}>{p.finalCaption || '—'}</div>
-                      {p.aiReason && (
-                        <div className="truncate text-xs text-muted-foreground" title={p.aiReason}>{p.aiReason}</div>
+                      {p.pickNote && (
+                        <div className="truncate text-xs text-muted-foreground" title={p.pickNote}>{p.pickNote}</div>
                       )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">

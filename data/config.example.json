@@ -1,15 +1,12 @@
 {
-  "_readme": "Copy this file to data/config.json and fill in your own values. data/config.json is git-ignored so your tokens never leave your machine. On Vercel, set the same values as Environment Variables instead (see main README.md).",
-  "metaUserToken": "PASTE_YOUR_FACEBOOK_ACCESS_TOKEN_HERE",
-  "appId": "PASTE_YOUR_META_APP_ID_HERE",
-  "appSecret": "PASTE_YOUR_META_APP_SECRET_HERE",
-  "groqApiKey": "PASTE_YOUR_GROQ_API_KEY_HERE",
-  "groqModel": "groq/compound",
+  "_readme": "Copy this file to data/config.json and fill in your values. Everything you might switch later lives here: tokens, the target page, timezone and posting times. Switching pages = change pageId (or igUsername), push, done.",
+  "metaUserToken": "YOUR_META_USER_ACCESS_TOKEN (Graph API Explorer, long-lived)",
+  "appId": "YOUR_APP_ID",
+  "appSecret": "YOUR_APP_SECRET",
+  "pageId": "THE_FACEBOOK_PAGE_ID_TO_POST_TO",
+  "pageName": "Human-readable page name (optional, informational)",
+  "igUserId": "Instagram business account id (optional — auto-detected on connect)",
+  "igUsername": "Instagram username (optional — used to find the page if pageId is unknown)",
   "timezone": "Africa/Dar_es_Salaam",
-  "slots": "06:00,12:00,18:00",
-  "graceMinutes": 60,
-  "aiEnabled": true,
-  "aiEnhanceCaptions": false,
-  "pageTheme": "Teaching resources: lesson plans, teaching tips, classroom ideas and encouragement for teachers",
-  "publicBaseUrl": "https://your-deployment-url.vercel.app"
+  "slots": "06:00,12:00,18:00"
 }

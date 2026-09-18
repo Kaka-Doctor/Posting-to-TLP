@@ -11,10 +11,6 @@ export async function GET() {
     timezone: s.timezone,
     slots: s.slots,
     graceMinutes: s.graceMinutes,
-    aiEnabled: s.aiEnabled,
-    aiEnhanceCaptions: s.aiEnhanceCaptions,
-    groqModel: s.groqModel,
-    pageTheme: s.pageTheme,
     publicBaseUrl: s.publicBaseUrl,
   })
 }
@@ -44,11 +40,6 @@ export async function PUT(request: Request) {
   if (typeof body.graceMinutes === 'number' && body.graceMinutes >= 0 && body.graceMinutes <= 480) {
     data.graceMinutes = Math.round(body.graceMinutes)
   }
-  if (typeof body.aiEnabled === 'boolean') data.aiEnabled = body.aiEnabled
-  if (typeof body.aiEnhanceCaptions === 'boolean') data.aiEnhanceCaptions = body.aiEnhanceCaptions
-  if (typeof body.groqModel === 'string' && body.groqModel.trim()) data.groqModel = body.groqModel.trim()
-  if (typeof body.pageTheme === 'string') data.pageTheme = body.pageTheme.slice(0, 300)
-  if (typeof body.groqApiKey === 'string' && body.groqApiKey.trim()) data.groqApiKey = body.groqApiKey.trim()
   if (typeof body.publicBaseUrl === 'string') {
     data.publicBaseUrl = body.publicBaseUrl.trim().replace(/\/$/, '')
   }
@@ -65,10 +56,6 @@ export async function PUT(request: Request) {
     timezone: updated.timezone,
     slots: updated.slots,
     graceMinutes: updated.graceMinutes,
-    aiEnabled: updated.aiEnabled,
-    aiEnhanceCaptions: updated.aiEnhanceCaptions,
-    groqModel: updated.groqModel,
-    pageTheme: updated.pageTheme,
     publicBaseUrl: updated.publicBaseUrl,
   })
 }

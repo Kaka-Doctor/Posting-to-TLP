@@ -1,0 +1,12 @@
+[build]
+  command = "next build"
+  publish = ".next"
+
+# The Next.js runtime plugin turns API routes into Netlify functions
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# The agent's clock: the scheduled function in netlify/functions/agent-cron.ts
+# pings /api/cron every 10 minutes. Each ping checks the posting slots
+# (06:00 / 12:00 / 18:00 by default) — the catch-up window + duplicate guard
+# make sure nothing is ever double-posted.

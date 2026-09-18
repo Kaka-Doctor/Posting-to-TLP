@@ -101,18 +101,17 @@ export interface DataConfig {
   metaUserToken?: string
   appId?: string
   appSecret?: string
+  // The page to post to — THE switch. Change pageId (or igUsername) here and
+  // the agent re-connects to that page on the next start / cron hit.
   pageId?: string
   pageName?: string
   pageAccessToken?: string
   igUserId?: string
   igUsername?: string
-  groqApiKey?: string
-  groqModel?: string
   timezone?: string
   slots?: string
-  aiEnabled?: boolean
-  aiEnhanceCaptions?: boolean
-  pageTheme?: string
+  autoPost?: boolean
+  graceMinutes?: number
   publicBaseUrl?: string
 }
 
@@ -164,23 +163,19 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
   // ---- settings row ----
   let settings = await db.settings.findUnique({ where: { id: 'settings' } })
   if (!settings) {
-    settings = await db.settings.create({
-      data: { id: 'settings', groqApiKey: process.env.GROQ_API_KEY ?? '' },
-    })
+    settings = await db.settings.create({ data: { id: 'settings' } })
     summary.fresh = true
   }
 
   const cfg = (await readJson(CONFIG_FILE)) as Partial<DataConfig>
 
   // Values can come from data/config.json OR environment variables
-  // (env vars are the natural source on Vercel — see README.md).
+  // (env vars are the natural source on Vercel/Netlify — see README.md).
   const resolved: Record<string, string> = {}
   const envSources: Record<string, string | undefined> = {
     metaUserToken: process.env.META_ACCESS_TOKEN,
     appId: process.env.META_APP_ID,
     appSecret: process.env.META_APP_SECRET,
-    groqApiKey: process.env.GROQ_API_KEY,
-    groqModel: process.env.GROQ_MODEL,
     publicBaseUrl: process.env.PUBLIC_BASE_URL,
   }
   for (const key of Object.keys(envSources)) {
@@ -190,12 +185,13 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
         ? fromCfg.trim()
         : (envSources[key] ?? '').trim()
   }
+  // Extra keys that only make sense from config.json (no env equivalent)
+  resolved.pageId = typeof cfg.pageId === 'string' ? cfg.pageId.trim() : ''
+  resolved.igUsername = typeof cfg.igUsername === 'string' ? cfg.igUsername.trim().replace(/^@/, '') : ''
 
   // ---- apply config: on a fresh DB apply everything; otherwise fill only empty fields ----
   const data: Record<string, unknown> = {}
   const strFields: Array<[keyof DataConfig, keyof typeof settings]> = [
-    ['groqApiKey', 'groqApiKey'],
-    ['groqModel', 'groqModel'],
     ['metaUserToken', 'metaUserToken'],
     ['appId', 'appId'],
     ['appSecret', 'appSecret'],
@@ -211,18 +207,8 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
   if (summary.fresh) {
     if (typeof cfg.timezone === 'string' && cfg.timezone.trim()) data.timezone = cfg.timezone.trim()
     if (typeof cfg.slots === 'string' && cfg.slots.trim()) data.slots = cfg.slots.trim()
-    if (typeof cfg.pageTheme === 'string' && cfg.pageTheme.trim()) data.pageTheme = cfg.pageTheme.trim()
-    if (typeof cfg.aiEnabled === 'boolean') data.aiEnabled = cfg.aiEnabled
-    if (typeof cfg.aiEnhanceCaptions === 'boolean') data.aiEnhanceCaptions = cfg.aiEnhanceCaptions
-    // direct page connection from config (Vercel fast path — no token exchange needed)
-    if (cfg.pageId && cfg.pageAccessToken) {
-      data.pageId = cfg.pageId
-      data.pageAccessToken = cfg.pageAccessToken
-      data.pageName = cfg.pageName ?? ''
-      data.igUserId = cfg.igUserId ?? ''
-      data.igUsername = cfg.igUsername ?? ''
-      summary.connection = 'restored'
-    }
+    if (typeof cfg.autoPost === 'boolean') data.autoPost = cfg.autoPost
+    if (typeof cfg.graceMinutes === 'number') data.graceMinutes = cfg.graceMinutes
   }
   if (Object.keys(data).length > 0) {
     settings = await db.settings.update({ where: { id: 'settings' }, data })
@@ -278,12 +264,23 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
   }
 
   // ---- connect / re-connect based on the raw token fingerprint ----
-  // First connect (no page linked yet) OR token rotation (the raw token in
-  // data/config.json / env changed since the last successful connect).
+  // Re-connect happens when:
+  //   - no page connection yet (fresh DB, first boot)
+  //   - the raw token in data/config.json / env changed (rotation)
+  //   - the target page in data/config.json changed (page switch!)
   const rawToken = resolved.metaUserToken
+  const cfgPage = resolved.pageId
+  const cfgIg = resolved.igUsername
   const tokenRotated = Boolean(rawToken && rawToken !== settings.configTokenSeen)
-  if (rawToken && (!settings.pageAccessToken || tokenRotated)) {
-    summary.connection = await autoConnect(rawToken, resolved.appId || settings.appId, resolved.appSecret || settings.appSecret)
+  const pageSwitched = Boolean(
+    (cfgPage && cfgPage !== settings.pageId) ||
+    (cfgIg && cfgIg !== settings.igUsername)
+  )
+  if (rawToken && (!settings.pageAccessToken || tokenRotated || pageSwitched)) {
+    summary.connection = await autoConnect(rawToken, resolved.appId || settings.appId, resolved.appSecret || settings.appSecret, {
+      pageId: cfgPage,
+      igUsername: cfgIg,
+    })
   } else if (summary.connection === 'skipped' && settings.pageAccessToken) {
     summary.connection = 'already'
   }
@@ -299,8 +296,15 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
   return summary
 }
 
-/** Exchange token → list pages → pick the configured/IG-linked page → save connection */
-async function autoConnect(userToken: string, appId: string, appSecret: string): Promise<ImportSummary['connection']> {
+/** Exchange token → list pages → pick the configured/IG-linked page → save connection.
+ *  Preference order: pageId from config → igUsername from config → the page
+ *  already saved in the DB → first page with Instagram → first page. */
+async function autoConnect(
+  userToken: string,
+  appId: string,
+  appSecret: string,
+  prefer: { pageId?: string; igUsername?: string }
+): Promise<ImportSummary['connection']> {
   try {
     let token = userToken
     let expiresAt: Date | null = null
@@ -321,6 +325,8 @@ async function autoConnect(userToken: string, appId: string, appSecret: string):
 
     const configured = await db.settings.findUnique({ where: { id: 'settings' } })
     const page =
+      pages.find((p) => prefer.pageId && p.id === prefer.pageId) ??
+      pages.find((p) => prefer.igUsername && p.igUsername === prefer.igUsername) ??
       pages.find((p) => p.id === configured?.pageId) ??
       pages.find((p) => p.igUserId) ??
       pages[0]

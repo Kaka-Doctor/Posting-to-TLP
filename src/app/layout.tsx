@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Auto-Poster Agent — Instagram + Facebook",
   description:
-    "A Groq-powered agent that posts to your Instagram and Facebook page 3 times a day from your own photo library and caption bank.",
+    "An agent that posts your photos and captions to Instagram and Facebook 3 times a day — exactly as you write them, in rotation.",
   icons: {
     icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
   },
