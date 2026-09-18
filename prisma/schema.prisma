@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Singleton settings row (id = "settings")
+model Settings {
+  id                  String   @id @default("settings")
+
+  // Scheduler
+  autoPost            Boolean  @default(true)
+  timezone            String   @default("Africa/Dar_es_Salaam")
+  slots               String   @default("06:00,12:00,18:00")
+  graceMinutes        Int      @default(60)
+
+  // AI (Groq)
+  aiEnabled           Boolean  @default(true)
+  aiEnhanceCaptions   Boolean  @default(false)
+  groqApiKey          String   @default("")
+  groqModel           String   @default("groq/compound")
+  pageTheme           String   @default("Teaching resources: lesson plans, teaching tips, classroom ideas and encouragement for teachers")
+
+  // Meta (Facebook Page + Instagram)
+  metaUserToken       String   @default("")
+  appId               String   @default("")
+  appSecret           String   @default("")
+  pageId              String   @default("")
+  pageName            String   @default("")
+  pageAccessToken     String   @default("")
+  igUserId            String   @default("")
+  igUsername          String   @default("")
+  tokenObtainedAt     DateTime?
+  tokenExpiresAt      DateTime?
+
+  // Public base URL used to expose photos to the Meta crawler
+  publicBaseUrl       String   @default("")
+
+  updatedAt           DateTime @updatedAt
+}
+
+model Photo {
+  id           String    @id @default(cuid())
+  filename     String // stored filename on disk (uploads/)
+  thumbname    String    @default("") // stored thumbnail (uploads/thumbs/)
+  originalName String
+  description  String    @default("")
+  mimeType     String    @default("image/jpeg")
+  sizeBytes    Int       @default(0)
+  active       Boolean   @default(true)
+  timesUsed    Int       @default(0)
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  posts        Post[]
+}
+
+model Caption {
+  id         String    @id @default(cuid())
+  text       String
+  active     Boolean   @default(true)
+  timesUsed  Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  posts       Post[]
+}
+
+model Post {
+  id           String    @id @default(cuid())
+  slotKey      String // e.g. "2026-09-18|12:00" or "manual-<timestamp>"
+  slotLabel    String // e.g. "12:00 Auto" or "Manual"
+  source       String    @default("auto") // "auto" | "manual"
+  photoId      String?
+  photo        Photo?    @relation(fields: [photoId], references: [id])
+  captionId    String?
+  caption      Caption?  @relation(fields: [captionId], references: [id])
+  finalCaption String    @default("")
+  status       String    @default("pending") // pending | published | partial | failed | skipped
+  igPostId     String    @default("")
+  igPermalink  String    @default("")
+  igError      String    @default("")
+  fbPostId     String    @default("")
+  fbPermalink  String    @default("")
+  fbError      String    @default("")
+  aiReason     String    @default("")
+  createdAt    DateTime  @default(now())
+  postedAt     DateTime?
+}
+
+model AgentLog {
+  id        String   @id @default(cuid())
+  level     String   @default("info") // info | success | error
+  message   String
+  createdAt DateTime @default(now())
+}
