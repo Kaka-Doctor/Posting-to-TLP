@@ -48,9 +48,9 @@ Third caption here.
 
 ## 3. Keys & tokens → `data/config.json`
 
-Everything else the agent needs (your Meta token, App ID, App Secret, Groq key, timezone, posting times) lives in `data/config.json`. A ready-to-edit template is in `data/config.example.json`.
+Everything else the agent needs (your Meta token, App ID, App Secret, Groq key, timezone, posting times, and the saved page connection) lives in `data/config.json`. A ready-to-edit template is in `data/config.example.json`.
 
-Your real values are already saved in `data/config.json` on this machine. **This file is git-ignored on purpose** — for your Vercel deployment you paste the same values into Vercel → Settings → Environment Variables (the main README.md shows exactly which variables to create).
+This file **is committed to the repo** (which is private) so your Vercel deployment works with zero manual setup — on every cold start the agent restores the "Teacher's Lesson Plan" + Instagram connection directly from it. If you ever make the repo public, move these values to Vercel → Settings → Environment Variables and delete this file from git (the main README.md shows exactly which variables to create).
 
 ## What happens after you drop files
 
