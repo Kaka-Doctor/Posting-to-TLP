@@ -10,14 +10,15 @@ node_modules
 # production
 /build
 
-# env files — real secrets stay local / in Vercel env vars
-.env*
-!.env.example
+# env files — intentionally committed here for out-of-the-box Vercel hosting
+# of this private personal project (user's explicit choice; see README).
+# If you fork this for a public repo, delete .env from git and use Vercel
+# Project Settings -> Environment Variables instead.
+# .env*
 
 # runtime state (never commit these)
 /db/
 /uploads/
-/data/config.json
 *.log
 dev.log
 dev.out.log

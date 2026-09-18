@@ -74,24 +74,16 @@ The same things can also be managed from the dashboard (upload, edit, activate/d
 
 1. Push this repo to GitHub (already done if you're reading this there 🙂).
 2. In Vercel: **Add New → Project → Import** this repo.
-3. **Settings → Environment Variables** — add:
+3. **Nothing else to configure** — this repo deliberately carries its `.env` and `data/config.json` (tokens, page connection, Groq key) so the deployment works out of the box: on every cold start the agent re-imports the `data/` folder and restores the "Teacher's Lesson Plan" page connection directly.
 
-   ```
-   GROQ_API_KEY=...
-   GROQ_MODEL=groq/compound
-   META_ACCESS_TOKEN=...
-   META_APP_ID=...
-   META_APP_SECRET=...
-   ```
-
-   (same values as your local `data/config.json` / `.env`)
+   > Keeping credentials in a **private** repo is a deliberate trade-off for convenience. If you ever make this repo **public**, first move the values into **Vercel → Settings → Environment Variables** (`GROQ_API_KEY`, `GROQ_MODEL`, `META_ACCESS_TOKEN`, `META_APP_ID`, `META_APP_SECRET`) and delete `.env` + `data/config.json` from git.
 4. Deploy. Open your `https://<project>.vercel.app` — the dashboard shows the agent connecting to your pages and importing the `data/` folder.
 
 ### The clock: cron setup (important)
 
-Serverless apps don't run timers in the background — they need to be *pinged*. This repo includes `vercel.json` with a daily backup cron (03:17 UTC = 06:17 EAT), which alone covers the morning post.
+Serverless apps don't run timers in the background — they need to be *pinged*. This repo includes `vercel.json` with two daily crons — **03:17 UTC (06:17 EAT)** and **15:17 UTC (18:17 EAT)** — which cover the morning and evening posts. The Hobby plan's cron limit (2 daily jobs) is why the third slot needs one extra step.
 
-**For all 3 daily slots, add a free external cron** (2 minutes):
+**To cover the midday 12:00 EAT slot too, add a free external cron** (2 minutes):
 
 1. Create a free account at [cron-job.org](https://cron-job.org) (or EasyCron / UptimeRobot's heartbeat).
 2. Create a job with URL `https://<your-project>.vercel.app/api/cron` running **every 5–10 minutes**.
