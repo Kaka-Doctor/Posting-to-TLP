@@ -1,15 +1,21 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSettings, targetsConfigured, minutesUntilNextSlot, localNow } from '@/lib/settings'
+import { getSettings, targetsConfigured, minutesUntilNextSlot, localNow, capturePublicBaseUrl } from '@/lib/settings'
 import { schedulerInfo, startScheduler } from '@/lib/scheduler'
 import { ensureDb } from '@/lib/importer'
 import { checkPageHealth } from '@/lib/meta'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(request: Request) {
   await ensureDb()
   startScheduler() // lazy start (idempotent) in case instrumentation hook missed
+
+  // Self-capture the public URL the first time the dashboard is opened from
+  // a real deployment host (Vercel etc.). Meta's servers later download
+  // post images from this URL.
+  await capturePublicBaseUrl(request)
+
   const s = await getSettings()
   const targets = targetsConfigured(s)
 

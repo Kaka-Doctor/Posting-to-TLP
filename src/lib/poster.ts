@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { getSettings, log, localNow, targetsConfigured } from '@/lib/settings'
 import { pickPair, enhanceCaption } from '@/lib/groq'
-import { publishToInstagram, publishToFacebook } from '@/lib/meta'
+import { publishToInstagram, publishToFacebook, minutesSinceLastPost } from '@/lib/meta'
 import type { Photo, Caption, Post } from '@prisma/client'
 
 const globalForPoster = globalThis as unknown as { __posterRunning: boolean }
@@ -21,14 +21,24 @@ export interface RunOutcome {
   message: string
 }
 
+export interface RunOptions {
+  /** Select photo + caption (AI or fallback) but do NOT publish anything */
+  dryRun?: boolean
+}
+
 /**
  * Runs one full posting cycle:
  * select photo + caption (AI or sequential) -> publish to Instagram + Facebook -> record history.
+ *
+ * Resilience guarantee: every AI step is wrapped in try/catch with a
+ * sequential-rotation fallback — if Groq is down, wrong, or slow, the post
+ * still goes out using the least-recently-used photo + caption.
  */
 export async function runPostingJob(
   slotKey: string,
   slotLabel: string,
-  source: 'auto' | 'manual'
+  source: 'auto' | 'manual',
+  opts: RunOptions = {}
 ): Promise<RunOutcome> {
   if (globalForPoster.__posterRunning) {
     return { ok: false, post: null, message: 'Another posting job is already running' }
@@ -107,6 +117,95 @@ export async function runPostingJob(
     // ---- Public image URL (Meta servers download the image from here) ----
     const baseUrl = settings.publicBaseUrl.replace(/\/$/, '')
     const imageUrl = `${baseUrl}/api/photos/${photo.id}/raw`
+
+    // ---- Dry run: record what WOULD be posted, publish nothing ----
+    if (opts.dryRun) {
+      const post = await db.post.create({
+        data: {
+          slotKey,
+          slotLabel,
+          source,
+          photoId: photo.id,
+          captionId: caption.id,
+          finalCaption,
+          status: 'skipped',
+          igError: 'Dry run — nothing was published',
+          fbError: 'Dry run — nothing was published',
+          aiReason: `DRY RUN — ${aiReason}`,
+        },
+      })
+      const urlNote = baseUrl
+        ? 'image URL ready'
+        : 'public URL not captured yet (open the dashboard once, or set PUBLIC_BASE_URL)'
+      await log(
+        'info',
+        `${slotLabel}: DRY RUN — would post "${photo.originalName}" + "${finalCaption.slice(0, 40)}…" — ${aiReason} (${urlNote})`
+      )
+      return {
+        ok: true,
+        post,
+        message: `Dry run: picked "${photo.originalName}" — nothing was published (${urlNote})`,
+      }
+    }
+
+    if (!baseUrl) {
+      const post = await db.post.create({
+        data: {
+          slotKey,
+          slotLabel,
+          source,
+          photoId: photo.id,
+          captionId: caption.id,
+          finalCaption,
+          status: 'failed',
+          igError: 'Public URL not set',
+          fbError: 'Public URL not set',
+          aiReason: 'Photos are served from settings.publicBaseUrl — it is empty',
+        },
+      })
+      await log('error', `${slotLabel}: Cannot publish — publicBaseUrl is empty. Open the dashboard once (it self-captures) or set PUBLIC_BASE_URL.`)
+      return {
+        ok: false,
+        post,
+        message: 'Public URL not set — open the dashboard once or set PUBLIC_BASE_URL, then retry',
+      }
+    }
+
+    // ---- Duplicate-post guard ----
+    // A persistent database already dedupes by slot. On serverless hosts
+    // (Vercel) the database resets between invocations, so we ask Meta when
+    // the last post actually went out before publishing again.
+    const guardMinutes =
+      source === 'auto'
+        ? process.env.VERCEL
+          ? Number(process.env.DEDUP_GUARD_MINUTES ?? 30)
+          : 0
+        : 3
+    if (guardMinutes > 0) {
+      const lastAgo = await minutesSinceLastPost(settings.igUserId, settings.pageId, settings.pageAccessToken)
+      if (lastAgo !== null && lastAgo < guardMinutes) {
+        const post = await db.post.create({
+          data: {
+            slotKey,
+            slotLabel,
+            source,
+            photoId: photo.id,
+            captionId: caption.id,
+            finalCaption,
+            status: 'skipped',
+            igError: 'Duplicate guard',
+            fbError: 'Duplicate guard',
+            aiReason: `Duplicate guard — a post went out ${lastAgo} min ago (guard: ${guardMinutes} min)`,
+          },
+        })
+        await log('info', `${slotLabel}: Skipped by duplicate guard — last post was ${lastAgo} min ago`)
+        return {
+          ok: true,
+          post,
+          message: `Duplicate guard: a post was published ${lastAgo} min ago — skipped to avoid double-posting`,
+        }
+      }
+    }
 
     // ---- Publish ----
     const [igResult, fbResult] = await Promise.all([

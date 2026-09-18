@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { runTick } from '@/lib/scheduler'
 import { ensureDb } from '@/lib/importer'
-import { db } from '@/lib/db'
+import { capturePublicBaseUrl } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,22 +9,22 @@ export const dynamic = 'force-dynamic'
  * Cron entry point — used when hosting on Vercel (vercel.json crons) or by
  * any external cron service (cron-job.org etc.). Every hit runs one
  * scheduler pass: slots within the catch-up window fire, deduplicated.
+ *
+ * Optional protection: set CRON_SECRET (env) and call
+ *   /api/cron?secret=YOUR_SECRET   or   Authorization: Bearer YOUR_SECRET
  */
 export async function GET(request: Request) {
-  // Capture the public URL for image hosting (Vercel/sandbox) once
-  try {
-    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
-    const proto = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
-    const url = `${proto}://${host}`.replace(/\/$/, '')
-    if (host && !host.includes('localhost')) {
-      const settings = await db.settings.findUnique({ where: { id: 'settings' } })
-      if (settings && (!settings.publicBaseUrl || settings.publicBaseUrl.includes('localhost') || settings.publicBaseUrl === '')) {
-        await db.settings.update({ where: { id: 'settings' }, data: { publicBaseUrl: url } })
-      }
+  const secret = process.env.CRON_SECRET
+  if (secret) {
+    const url = new URL(request.url)
+    const provided = url.searchParams.get('secret') ?? request.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+    if (provided !== secret) {
+      return NextResponse.json({ ok: false, error: 'Invalid or missing cron secret' }, { status: 401 })
     }
-  } catch {
-    /* best effort */
   }
+
+  // Capture the public URL for image hosting (Vercel etc.) once
+  await capturePublicBaseUrl(request)
 
   await ensureDb()
   const result = await runTick()

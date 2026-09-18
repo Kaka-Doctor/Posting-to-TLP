@@ -39,6 +39,10 @@ model Settings {
   // Public base URL used to expose photos to the Meta crawler
   publicBaseUrl       String   @default("")
 
+  // Fingerprint of the last raw token applied from data/config.json or env —
+  // lets the importer detect token rotation and re-connect automatically
+  configTokenSeen     String   @default("")
+
   updatedAt           DateTime @updatedAt
 }
 

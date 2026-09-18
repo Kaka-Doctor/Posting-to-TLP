@@ -100,6 +100,53 @@ export interface PublishResult {
 }
 
 /**
+ * How many minutes ago the most recent post was published (Instagram media
+ * first, Facebook page feed as fallback). Used as a duplicate-post guard on
+ * serverless hosts where the database does not persist between invocations.
+ * Returns null when the check fails or no post is found — callers treat null
+ * as "unknown, do not block".
+ */
+export async function minutesSinceLastPost(
+  igUserId: string,
+  pageId: string,
+  pageToken: string
+): Promise<number | null> {
+  const cutoff = Date.now() - 7 * 86400000 // only look at the last 7 days
+  try {
+    if (igUserId) {
+      const json = await graphGet(`${igUserId}/media`, {
+        fields: 'timestamp',
+        limit: '3',
+        access_token: pageToken,
+      })
+      const media = (json.data ?? []) as Array<Record<string, unknown>>
+      const ts = media.map((m) => (m.timestamp ? new Date(String(m.timestamp)).getTime() : 0)).filter(Boolean)
+      const latest = Math.max(...ts, 0)
+      if (latest > cutoff) return Math.max(0, Math.round((Date.now() - latest) / 60000))
+      return null
+    }
+  } catch {
+    /* fall through to Facebook */
+  }
+  try {
+    if (pageId) {
+      const json = await graphGet(`${pageId}/posts`, {
+        fields: 'created_time',
+        limit: '3',
+        access_token: pageToken,
+      })
+      const posts = (json.data ?? []) as Array<Record<string, unknown>>
+      const ts = posts.map((p) => (p.created_time ? new Date(String(p.created_time)).getTime() : 0)).filter(Boolean)
+      const latest = Math.max(...ts, 0)
+      if (latest > cutoff) return Math.max(0, Math.round((Date.now() - latest) / 60000))
+    }
+  } catch {
+    /* unknown — do not block */
+  }
+  return null
+}
+
+/**
  * Publish a photo to Instagram. Two-step Graph API flow:
  * 1. Create a media container (Meta servers fetch image_url — must be public)
  * 2. Publish the container

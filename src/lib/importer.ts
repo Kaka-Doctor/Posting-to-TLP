@@ -39,8 +39,15 @@ export async function ensureSchema(): Promise<void> {
     "tokenObtainedAt" DATETIME,
     "tokenExpiresAt" DATETIME,
     "publicBaseUrl" TEXT NOT NULL DEFAULT '',
+    "configTokenSeen" TEXT NOT NULL DEFAULT '',
     "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`)
+  // Databases created by an older build may lack the rotation column
+  try {
+    await db.$executeRawUnsafe(`ALTER TABLE "Settings" ADD COLUMN "configTokenSeen" TEXT NOT NULL DEFAULT ''`)
+  } catch {
+    /* column already exists */
+  }
   await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Photo" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "filename" TEXT NOT NULL,
@@ -165,6 +172,25 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
 
   const cfg = (await readJson(CONFIG_FILE)) as Partial<DataConfig>
 
+  // Values can come from data/config.json OR environment variables
+  // (env vars are the natural source on Vercel — see README.md).
+  const resolved: Record<string, string> = {}
+  const envSources: Record<string, string | undefined> = {
+    metaUserToken: process.env.META_ACCESS_TOKEN,
+    appId: process.env.META_APP_ID,
+    appSecret: process.env.META_APP_SECRET,
+    groqApiKey: process.env.GROQ_API_KEY,
+    groqModel: process.env.GROQ_MODEL,
+    publicBaseUrl: process.env.PUBLIC_BASE_URL,
+  }
+  for (const key of Object.keys(envSources)) {
+    const fromCfg = cfg[key as keyof DataConfig]
+    resolved[key] =
+      typeof fromCfg === 'string' && fromCfg.trim()
+        ? fromCfg.trim()
+        : (envSources[key] ?? '').trim()
+  }
+
   // ---- apply config: on a fresh DB apply everything; otherwise fill only empty fields ----
   const data: Record<string, unknown> = {}
   const strFields: Array<[keyof DataConfig, keyof typeof settings]> = [
@@ -176,9 +202,9 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
     ['publicBaseUrl', 'publicBaseUrl'],
   ]
   for (const [cfgKey, dbKey] of strFields) {
-    const value = cfg[cfgKey]
-    if (typeof value === 'string' && value.trim() && !(settings as Record<string, unknown>)[dbKey as string]) {
-      data[dbKey as string] = value.trim()
+    const value = resolved[cfgKey as string]
+    if (value && !(settings as Record<string, unknown>)[dbKey as string]) {
+      data[dbKey as string] = value
       summary.configApplied.push(String(cfgKey))
     }
   }
@@ -251,9 +277,13 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
     /* captions.txt missing */
   }
 
-  // ---- auto-connect if a token exists but no page is linked yet ----
-  if (!settings.pageAccessToken && settings.metaUserToken && !summary.fresh) {
-    summary.connection = await autoConnect(settings.metaUserToken, settings.appId, settings.appSecret)
+  // ---- connect / re-connect based on the raw token fingerprint ----
+  // First connect (no page linked yet) OR token rotation (the raw token in
+  // data/config.json / env changed since the last successful connect).
+  const rawToken = resolved.metaUserToken
+  const tokenRotated = Boolean(rawToken && rawToken !== settings.configTokenSeen)
+  if (rawToken && (!settings.pageAccessToken || tokenRotated)) {
+    summary.connection = await autoConnect(rawToken, resolved.appId || settings.appId, resolved.appSecret || settings.appSecret)
   } else if (summary.connection === 'skipped' && settings.pageAccessToken) {
     summary.connection = 'already'
   }
@@ -278,7 +308,10 @@ async function autoConnect(userToken: string, appId: string, appSecret: string):
       try {
         const exchanged = await exchangeLongLivedToken(userToken, appId, appSecret)
         token = exchanged.token
-        expiresAt = new Date(Date.now() + exchanged.expiresInDays * 86400000)
+        // A re-exchange of an already-long-lived token returns no expires_in —
+        // treat 0 as "no known expiry" instead of "expired now"
+        expiresAt =
+          exchanged.expiresInDays > 0 ? new Date(Date.now() + exchanged.expiresInDays * 86400000) : null
       } catch {
         /* fall back to the raw token */
       }
@@ -303,6 +336,7 @@ async function autoConnect(userToken: string, appId: string, appSecret: string):
         igUsername: page.igUsername,
         tokenObtainedAt: new Date(),
         tokenExpiresAt: expiresAt,
+        configTokenSeen: userToken,
       },
     })
     await log('success', `Auto-connected to page "${page.name}" from data/config.json`)

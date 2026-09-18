@@ -89,3 +89,34 @@ export async function log(level: 'info' | 'success' | 'error', message: string) 
     console.error('[agent] failed to write log', e)
   }
 }
+
+/**
+ * Hosts we never record as the public photo URL: local dev, the sandbox
+ * gateway (session-affinity protected — Meta cannot crawl it), and preview
+ * proxies. On a real deployment (Vercel etc.) the host is captured once.
+ */
+export function isUsablePublicHost(host: string): boolean {
+  if (!host) return false
+  if (host.includes('localhost') || host.startsWith('127.') || host.startsWith('0.0.0.0')) return false
+  if (host.endsWith('.fcapp.run')) return false
+  if (host.endsWith('.space-z.ai')) return false
+  return true
+}
+
+/** Best-effort: remember the public URL photos are served from */
+export async function capturePublicBaseUrl(request: Request): Promise<void> {
+  try {
+    const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
+    const proto = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
+    const url = `${proto}://${host}`.replace(/\/$/, '')
+    if (isUsablePublicHost(host)) {
+      const s = await db.settings.findUnique({ where: { id: 'settings' } })
+      const stale = !s?.publicBaseUrl || s.publicBaseUrl.includes('localhost') || s.publicBaseUrl.includes('fcapp.run')
+      if (s && stale) {
+        await db.settings.update({ where: { id: 'settings' }, data: { publicBaseUrl: url } })
+      }
+    }
+  } catch {
+    /* best effort */
+  }
+}

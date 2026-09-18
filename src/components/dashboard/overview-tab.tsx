@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   Clock, Images, MessageSquareText, CalendarCheck, Instagram, Facebook, Zap,
-  CircleCheck, CircleX, CircleAlert, ExternalLink, Loader2, RefreshCw,
+  CircleCheck, CircleX, CircleAlert, ExternalLink, Loader2, RefreshCw, FlaskConical,
 } from 'lucide-react'
 import { fmtCountdown, type StatusResponse, type PostItem } from './types'
 
@@ -53,13 +53,17 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
     return () => clearInterval(t)
   }, [loadPosts])
 
-  async function runNow() {
+  async function runNow(dryRun: boolean) {
     setRunning(true)
     try {
-      const res = await fetch('/api/run', { method: 'POST' })
+      const res = await fetch('/api/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dryRun }),
+      })
       const json = await res.json()
       if (json.ok) {
-        toast.success(json.message, { description: json.post?.aiReason?.slice(0, 120) })
+        toast.success(json.message, { description: json.post?.aiReason?.slice(0, 160) })
       } else {
         toast.error(json.message, { description: json.post?.igError || json.post?.fbError || '' })
       }
@@ -202,18 +206,24 @@ export function OverviewTab({ status, onRefresh }: { status: StatusResponse | nu
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={runNow} className="bg-emerald-600 hover:bg-emerald-700">
+                  <AlertDialogAction onClick={() => runNow(false)} className="bg-emerald-600 hover:bg-emerald-700">
                     Yes, post now
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            <div className="flex w-full gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => runNow(true)} disabled={running}>
+                {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <FlaskConical className="h-3.5 w-3.5" aria-hidden />}
+                Test pick
+              </Button>
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => { loadPosts(); onRefresh(); }}>
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Refresh
+              </Button>
+            </div>
             <p className="text-center text-xs text-muted-foreground">
-              Manual run — handy for testing right after you connect your pages.
+              <span className="font-medium">Test pick</span> runs the full selection (AI or fallback) without publishing — a safe way to watch the agent think.
             </p>
-            <Button variant="outline" size="sm" onClick={() => { loadPosts(); onRefresh(); }}>
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Refresh
-            </Button>
           </CardContent>
         </Card>
       </div>

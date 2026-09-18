@@ -11,7 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { Upload, Loader2, Trash2, ImageIcon, Check } from 'lucide-react'
+import { Upload, Loader2, Trash2, ImageIcon, Check, FolderSearch } from 'lucide-react'
 import { fmtBytes, type PhotoItem } from './types'
 
 export function PhotosTab({ onRefresh }: { onRefresh: () => void }) {
@@ -62,6 +62,29 @@ export function PhotosTab({ onRefresh }: { onRefresh: () => void }) {
       toast.error('Upload failed — try again')
     } finally {
       setUploading(false)
+    }
+  }
+
+  const [importing, setImporting] = useState(false)
+
+  async function scanDataFolder() {
+    setImporting(true)
+    try {
+      const res = await fetch('/api/import', { method: 'POST' })
+      const json = await res.json()
+      if (json.ok) {
+        toast.success(`Scan complete — ${json.message}`, {
+          description: `Connection: ${json.connection}. Re-scan any time after dropping new files into data/.`,
+        })
+      } else {
+        toast.error(json.message || 'Scan failed')
+      }
+      await load()
+      onRefresh()
+    } catch {
+      toast.error('Scan failed — try again')
+    } finally {
+      setImporting(false)
     }
   }
 
@@ -140,6 +163,16 @@ export function PhotosTab({ onRefresh }: { onRefresh: () => void }) {
               <Button onClick={upload} disabled={uploading} className="bg-emerald-600 hover:bg-emerald-700">
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Upload className="h-4 w-4" aria-hidden />}
                 {uploading ? 'Uploading…' : 'Upload'}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-2 rounded-lg border border-dashed p-3 sm:flex-row sm:items-center sm:gap-3">
+              <FolderSearch className="h-4 w-4 shrink-0 text-teal-600" aria-hidden />
+              <p className="flex-1 text-xs text-muted-foreground">
+                Photos and captions dropped into the <span className="font-mono font-medium">data/</span> folder of the repo (your GitHub content folder) are picked up automatically on every start — press scan to re-check right now.
+              </p>
+              <Button variant="outline" size="sm" onClick={scanDataFolder} disabled={importing} className="shrink-0">
+                {importing ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <FolderSearch className="h-3.5 w-3.5" aria-hidden />}
+                {importing ? 'Scanning…' : 'Scan data folder'}
               </Button>
             </div>
           </div>

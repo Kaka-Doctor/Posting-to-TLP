@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSettings, log } from '@/lib/settings'
+import { getSettings, log, isUsablePublicHost } from '@/lib/settings'
 import { exchangeLongLivedToken, fetchPages } from '@/lib/meta'
 
 export const dynamic = 'force-dynamic'
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
 function derivePublicBaseUrl(request: Request): string {
   const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || ''
   const proto = request.headers.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https')
-  if (!host) return ''
+  if (!isUsablePublicHost(host)) return ''
   return `${proto}://${host}`.replace(/\/$/, '')
 }
 
@@ -42,8 +42,12 @@ export async function POST(request: Request) {
     try {
       const exchanged = await exchangeLongLivedToken(token, appId, appSecret)
       workingToken = exchanged.token
-      expiresAt = new Date(Date.now() + exchanged.expiresInDays * 86400000)
-      tokenNote = `Exchanged to a long-lived user token (~${exchanged.expiresInDays} days)`
+      if (exchanged.expiresInDays > 0) {
+        expiresAt = new Date(Date.now() + exchanged.expiresInDays * 86400000)
+        tokenNote = `Exchanged to a long-lived user token (~${exchanged.expiresInDays} days)`
+      } else {
+        tokenNote = 'Token is already long-lived (no new expiry reported)'
+      }
     } catch (e) {
       tokenNote = `Could not exchange token (${e instanceof Error ? e.message : 'unknown'}) — using the one you pasted`
     }
@@ -88,12 +92,14 @@ export async function POST(request: Request) {
   }
 
   await getSettings() // ensure row exists
+  const derivedUrl = derivePublicBaseUrl(request)
   await db.settings.update({
     where: { id: 'settings' },
     data: {
       metaUserToken: workingToken,
       appId,
       appSecret,
+      configTokenSeen: token,
       pageId: page.id,
       pageName: page.name,
       pageAccessToken: page.accessToken,
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
       igUsername: page.igUsername,
       tokenObtainedAt: new Date(),
       tokenExpiresAt: expiresAt,
-      publicBaseUrl: derivePublicBaseUrl(request),
+      ...(derivedUrl ? { publicBaseUrl: derivedUrl } : {}),
     },
   })
 
@@ -115,6 +121,6 @@ export async function POST(request: Request) {
     tokenNote,
     page: { id: page.id, name: page.name },
     instagram: { linked: Boolean(page.igUserId), username: page.igUsername },
-    publicBaseUrl: derivePublicBaseUrl(request),
+    publicBaseUrl: derivedUrl,
   })
 }

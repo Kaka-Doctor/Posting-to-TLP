@@ -40,8 +40,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No files uploaded' }, { status: 400 })
   }
 
-  await fs.mkdir(UPLOADS_DIR, { recursive: true })
-  await fs.mkdir(THUMBS_DIR, { recursive: true })
+  try {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true })
+    await fs.mkdir(THUMBS_DIR, { recursive: true })
+  } catch {
+    return NextResponse.json(
+      {
+        created: [],
+        errors: [
+          'This host has a read-only filesystem (serverless). Add photos by committing JPEGs to the data/photos/ folder in the repo, then press "Scan data folder".',
+        ],
+      },
+      { status: 400 }
+    )
+  }
 
   const created: Array<Record<string, unknown>> = []
   const errors: string[] = []

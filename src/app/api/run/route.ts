@@ -4,10 +4,22 @@ import { log } from '@/lib/settings'
 
 export const dynamic = 'force-dynamic'
 
-/** Manual "Post Now" trigger — runs the exact same job the scheduler runs */
-export async function POST() {
-  await log('info', 'Manual "Post Now" triggered from dashboard')
-  const result = await runPostingJob(`manual-${Date.now()}`, 'Manual', 'manual')
+/**
+ * Manual trigger — same job the scheduler runs.
+ * Body (optional): { "dryRun": true } → picks photo + caption (AI or fallback)
+ * but publishes nothing. Perfect for testing without touching your pages.
+ */
+export async function POST(request: Request) {
+  let dryRun = false
+  try {
+    const body = await request.json()
+    dryRun = Boolean(body?.dryRun)
+  } catch {
+    /* no body — normal run */
+  }
+
+  await log('info', dryRun ? 'Dry-run test triggered from dashboard' : 'Manual "Post Now" triggered from dashboard')
+  const result = await runPostingJob(`manual-${Date.now()}`, dryRun ? 'Manual (dry run)' : 'Manual', 'manual', { dryRun })
   return NextResponse.json(
     {
       ok: result.ok,
