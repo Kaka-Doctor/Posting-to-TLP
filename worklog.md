@@ -60,3 +60,24 @@ Stage Summary:
 - Pipeline fully verified for Instagram; Facebook awaits pages_manage_posts permission on a regenerated token
 - Vercel deployment = Import repo → Deploy, zero config needed
 - Deliverables: updated .env, data/config.json (full connection), vercel.json (2 crons), scripts/test-meta-safe.js, pushed commits b5c914f + 3c4942e
+
+---
+Task ID: ai-removal-and-switching
+Agent: main (Super Z)
+Task: New token verification, remove Groq AI, single-file page switching, Netlify prep
+
+Work Log:
+- New Meta token: all 5 permissions present (incl. pages_manage_posts — the previous gap). Reconnected via /api/setup/connect.
+- scripts/test-meta-safe.js: Facebook PASSED (unpublished post created + deleted), Instagram PASSED (container → FINISHED). Both platforms publish-ready.
+- Groq removed completely: deleted src/lib/groq.ts + /api/ai/test route; poster.ts now picks least-recently-used photo + caption and posts caption text verbatim; AI fields stripped from status/settings APIs, dashboard UI (setup tab AI card, Groq badge, texts); .env/.env.example/config files cleaned; DB AI fields cleared. ~450 lines deleted.
+- data/config.json = THE switch file: user maintains only metaUserToken, appId, appSecret, pageId (+ optional pageName/igUserId/igUsername, timezone, slots). pageAccessToken removed from config — autoConnect fetches a fresh page token from Meta on every cold start, token rotation, or page switch.
+- Importer: reconnect now triggers on pageId/igUsername change (not just token rotation); autoConnect preference order: cfg.pageId → cfg.igUsername → saved page → first IG-linked page → first page. Verified LIVE: switched config to Ladies Of Destiny (710815315448548), import auto-connected to @ladies_of_destiny_, switched back to Teacher's Lesson Plan.
+- Netlify: netlify.toml (Next plugin), netlify/functions/agent-cron.ts (v6 schedule() API, pings /api/cron every 10 min — covers all 3 slots, no external service needed), @netlify/functions devDep, NETLIFY added to duplicate-guard check in poster.ts.
+- vercel.json unchanged (03:17 + 15:17 UTC crons, Hobby-limit 2; README documents cron-job.org for midday slot).
+- Verification: eslint clean, tsc clean (app code), next build succeeds with /api/ai gone, homepage 200, dry-run shows "Rotation pick", import re-scan stable, photo raw endpoint 200.
+- Committed f61824d, pushed to GitHub (private repo).
+
+Stage Summary:
+- Pipeline verified on BOTH platforms with the new token; Groq fully removed; captions post exactly as written
+- Page switching = edit pageId in data/config.json + push (auto reconnects; _readme field lists all 7 page IDs)
+- Same repo deploys to Vercel (2 crons + optional external cron) or Netlify (built-in scheduled function, all slots covered)
