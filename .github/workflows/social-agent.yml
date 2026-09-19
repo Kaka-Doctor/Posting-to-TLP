@@ -1,0 +1,87 @@
+name: Social Media Agent
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  The agent runs ON GitHub — no web host needed (no Vercel / Netlify / server).
+#
+#  GitHub's cron fires this workflow every 30 minutes between 02:00 and 16:30
+#  UTC (05:00–19:30 EAT). The agent script itself decides whether one of the
+#  posting slots from data/config.json (06:00 / 12:00 / 18:00 EAT by default)
+#  is due, using a 60-minute catch-up window.
+#
+#  ⟶ To CHANGE posting times: edit "slots" (and "timezone") in data/config.json
+#    only — this file never needs to change.
+# ⟶ To POST RIGHT NOW: Actions tab → "Social Media Agent" → "Run workflow"
+#    → tick "force".
+# ⟶ To TEST without publishing: same, but tick "dryRun".
+#
+#  Free-tier notes (private repo): ~30 runs/day ≈ 900–1500 of the 2000 monthly
+#  included minutes. State commits after every posting keep the repo active, so
+#  scheduled workflows never get auto-disabled.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    - cron: "*/30 2-16 * * *"
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: "Dry run — pick content and log the plan, publish nothing"
+        type: boolean
+        default: false
+      force:
+        description: "Force — post the next scheduled slot right now"
+        type: boolean
+        default: false
+
+# Never let two runs race on data/state.json
+concurrency:
+  group: social-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: write # to commit data/state.json back
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Any file the user drops into data/photos/ (phone PNG, huge export,
+      # too-small image) is auto-converted/cropped/scaled to Instagram rules
+      # and the fix is committed back to the repo.
+      - name: Normalize photos
+        run: |
+          mkdir -p /tmp/norm && cd /tmp/norm
+          npm init -y >/dev/null 2>&1
+          npm install sharp --silent --no-audit --no-fund >/dev/null 2>&1 || true
+          cd "$GITHUB_WORKSPACE"
+          NODE_PATH=/tmp/norm/node_modules node scripts/normalize-photos.js \
+            || echo "normalize skipped (non-fatal — the agent posts files as-is)"
+
+      - name: Run the agent
+        env:
+          INPUT_DRY_RUN: ${{ inputs.dryRun }}
+          INPUT_FORCE: ${{ inputs.force }}
+        run: |
+          FLAGS=""
+          if [ "$INPUT_DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
+          if [ "$INPUT_FORCE" = "true" ]; then FLAGS="$FLAGS --force"; fi
+          node scripts/gh-agent.mjs $FLAGS
+
+      - name: Persist state + normalized photos
+        run: |
+          git config user.name "social-agent-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A data/
+          if git diff --cached --quiet; then
+            echo "nothing changed — no commit"
+          else
+            git commit -m "agent: state update $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push || (git pull --rebase origin main && git push)
+          fi
