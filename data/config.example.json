@@ -1,12 +1,14 @@
 {
-  "_readme": "Copy this file to data/config.json and fill in your values. Everything you might switch later lives here: tokens, the target page, timezone and posting times. Switching pages = change pageId (or igUsername), push, done.",
+  "_readme": "Copy this file to data/config.json and fill in your values. Everything you might switch later lives here: tokens, the target page, timezone and posting times. Switching pages = set pageId (or igUsername) + a fresh metaUserToken, push, done. pageAccessToken is maintained by the agent itself (permanent page token). Set autoPost to false to pause automatic posting.",
   "metaUserToken": "YOUR_META_USER_ACCESS_TOKEN (Graph API Explorer, long-lived)",
   "appId": "YOUR_APP_ID",
   "appSecret": "YOUR_APP_SECRET",
   "pageId": "THE_FACEBOOK_PAGE_ID_TO_POST_TO",
   "pageName": "Human-readable page name (optional, informational)",
+  "pageAccessToken": "(leave empty — the agent fills in the page's permanent token automatically)",
   "igUserId": "Instagram business account id (optional — auto-detected on connect)",
   "igUsername": "Instagram username (optional — used to find the page if pageId is unknown)",
   "timezone": "Africa/Dar_es_Salaam",
-  "slots": "06:00,12:00,18:00"
+  "slots": "06:00,12:00,18:00",
+  "autoPost": true
 }

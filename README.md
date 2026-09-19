@@ -5,7 +5,7 @@ An agent that posts **one photo + one caption** to your **Instagram** and **Face
 - **No AI, no surprises:** each slot takes the photo and caption used the *longest ago* and posts your caption **exactly as written** — nothing is rewritten, nothing is invented
 - **Content:** drop photos + captions into the [`data/`](./data/README.md) folder, push to GitHub — done
 - **Switch pages anytime:** the target page lives in **one file** (`data/config.json`) — change the `pageId`, push, and the agent re-connects to the new page automatically
-- **Works on Vercel, Netlify, or any Node host:** the same repo deploys anywhere
+- **Host it 3 ways:** on **GitHub itself** (Actions — recommended, zero external services), or deploy the same repo to **Vercel / Netlify** — your choice
 - **Dashboard:** connection health, library, post history with permalinks, live activity log, manual "Post now" and a safe "Test pick" dry-run
 
 ---
@@ -32,6 +32,32 @@ data/config.json ─┘          │
 ```
 
 Missed a slot because the server was restarting? The **catch-up window** (default 60 min) posts it as soon as the agent is back online — without ever double-posting the same slot.
+
+## Running on GitHub Actions — the agent hosted by GitHub itself
+
+**No web host at all.** GitHub's own servers run the agent for you, for free:
+
+- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes** (05:00–19:30 EAT window)
+- Each run checks out your repo on a GitHub runner and executes `node scripts/gh-agent.mjs`, which decides — using the **same slot logic as the app** — whether one of the slots from `data/config.json` (06:00 / 12:00 / 18:00 EAT) is due, with the 60-minute catch-up window
+- It publishes to Instagram + Facebook **directly from the repo files** and commits the state file `data/state.json` (done slots, rotation counters, event log) back to the repo, so every run knows what already happened
+- Run history + logs live in your repo's **Actions tab**; a failed run shows red **and emails you** — nothing fails silently
+
+**No image hosting needed.** Instagram's API requires a public image URL. Instead of maintaining an external host, the agent uploads each photo to your Facebook Page as an **invisible (unpublished) photo**, hands Instagram its CDN URL, publishes on Instagram, then deletes the hidden helper photo. Facebook is posted via direct binary upload. The whole image pipeline lives inside Meta's own infrastructure — there is nothing else to configure or pay for.
+
+**You never touch the workflow file.** Everything you'd ever change lives in `data/config.json`:
+
+| You want to… | You do |
+|---|---|
+| Change posting times / timezone | Edit `slots` / `timezone` in `data/config.json` and push |
+| Add photos & captions | Drop files in `data/photos/` + `data/captions.txt`, push (unchanged) |
+| Switch pages | Set `pageId` + a fresh `metaUserToken`, push — the agent mints the new page's permanent token and saves it back to the config |
+| Pause everything | Set `"autoPost": false` in `data/config.json` and push |
+| Post right now | Actions tab → **Social Media Agent** → **Run workflow** → tick `force` |
+| Test without publishing | Same, but tick `dryRun` |
+
+**Free-tier facts** (private repo, GitHub Free): ~30 runs/day ≈ 900–1500 of the 2000 monthly included minutes — comfortably inside the free quota. The agent's daily state commits keep the repository active, so scheduled workflows are never auto-disabled for inactivity. GitHub's cron can jitter by a few minutes at busy times; the 30-minute check cadence + catch-up window absorb that.
+
+> **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
 
 ## Quick start (local)
 
@@ -65,8 +91,10 @@ Everything you might change later lives in **`data/config.json`**:
 | `metaUserToken` | Your Facebook access token (the master key) |
 | `appId` / `appSecret` | Your Meta app credentials |
 | **`pageId`** | **The page the agent posts to — change this to switch pages** |
+| `pageAccessToken` | The page's permanent token — auto-maintained by the agent; posting keeps working even after `metaUserToken` expires |
 | `pageName`, `igUserId`, `igUsername` | Informational — auto-refreshed on connect |
 | `timezone`, `slots` | The schedule |
+| `autoPost` | Set `false` to pause automatic posting (GitHub runner reads it live) |
 
 To post to a different page: change `pageId` (or just `igUsername`) in `data/config.json`, commit, push. On the next start or cron hit the agent detects the change, fetches the new page's token, and starts posting there — photos and captions carry over unchanged. The `_readme` field inside the file lists the page IDs available to your token.
 
@@ -85,6 +113,8 @@ All of these are optional when `data/config.json` is committed (the config file 
 **Meta token permissions** (grant them in the Graph API Explorer): `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`, `instagram_basic`, `instagram_content_publish`. Your Instagram account must be a Business/Creator account linked to the Facebook Page.
 
 ## Deploying to Vercel
+
+> The GitHub Actions workflow (see above) is the recommended host. Vercel/Netlify below remain fully supported alternatives for when you want the web dashboard online.
 
 1. Push this repo to GitHub (already done if you're reading this there 🙂).
 2. In Vercel: **Add New → Project → Import** this repo.
@@ -149,10 +179,12 @@ You can verify the whole path without posting: **Overview tab → "Test pick"** 
 
 | Symptom | Fix |
 |---|---|
-| "Token needs attention" | Tokens expire (~60 days for long-lived). Generate a fresh token in the Graph API Explorer and update `metaUserToken` in `data/config.json` (or reconnect in Setup). |
-| Post failed: image URL | The public URL wasn't captured yet — open the dashboard once (it self-captures) or set `PUBLIC_BASE_URL`. |
+| "Token needs attention" | Tokens expire (~60 days for long-lived). Generate a fresh token in the Graph API Explorer and update `metaUserToken` in `data/config.json` (or reconnect in Setup). The `pageAccessToken` itself never expires — posting continues even while `metaUserToken` is expired. |
+| GitHub run is red | Open the run in the Actions tab — the log states the exact Meta error. Typical causes: token revoked (regenerate + update `metaUserToken`), image rejected (see below), or a partial post (one platform OK, the other errored). |
+| Post failed: image URL | On web hosts: the public URL wasn't captured yet — open the dashboard once (it self-captures) or set `PUBLIC_BASE_URL`. (The GitHub runner doesn't need a public URL at all.) |
 | "Library empty" skip | No active photos or captions — drop files in `data/` and press "Scan data folder". |
-| Instagram rejects image | JPEG only, ≥320px wide, ≤8MB. Very tall images (over 4:5) get cropped to 4:5 — square photos are the safest choice. |
+| Instagram rejects image | On the GitHub runner this is handled for you — every run auto-converts PNGs, crops to 4:5…1.91:1 and scales images before posting. If you still see it: corrupt file or extreme dimensions — replace the file. |
 | Facebook error `(#200)` | The token lacks `pages_manage_posts` — regenerate it in the Graph API Explorer with that permission ticked. |
-| Not posting at slot times | Your cron isn't set up or too sparse — see "The clock" sections above. |
-| Switched pages but still posting to the old one | Check that `pageId` in `data/config.json` really changed, then push and press "Scan data folder" (or wait for the next cron hit). |
+| Not posting at slot times | GitHub Actions: check the Actions tab for red runs. Web hosts: your cron isn't set up or too sparse — see "The clock" sections above. |
+| Want to stop posting for a while | Set `"autoPost": false` in `data/config.json` and push. |
+| Switched pages but still posting to the old one | Check that `pageId` in `data/config.json` really changed (plus a fresh `metaUserToken` when switching on the GitHub runner), then push — the next run reconnects. |

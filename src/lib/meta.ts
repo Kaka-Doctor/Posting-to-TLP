@@ -92,6 +92,39 @@ export async function checkPageHealth(
   }
 }
 
+/**
+ * Validates a page access token and returns the page name plus its linked
+ * Instagram account. Used by the config import path: a permanent page token
+ * stored in data/config.json connects without needing a valid user token.
+ */
+export async function validatePageToken(
+  pageId: string,
+  pageToken: string
+): Promise<{ ok: boolean; pageName: string; igUserId: string; igUsername: string; message: string }> {
+  try {
+    const json = await graphGet(pageId, {
+      fields: 'name,instagram_business_account{id,username}',
+      access_token: pageToken,
+    })
+    const ig = (json.instagram_business_account ?? null) as Record<string, unknown> | null
+    return {
+      ok: true,
+      pageName: String(json.name ?? ''),
+      igUserId: ig ? String(ig.id ?? '') : '',
+      igUsername: ig ? String(ig.username ?? '') : '',
+      message: 'Connected',
+    }
+  } catch (e) {
+    return {
+      ok: false,
+      pageName: '',
+      igUserId: '',
+      igUsername: '',
+      message: e instanceof Error ? e.message : 'Unknown error',
+    }
+  }
+}
+
 export interface PublishResult {
   ok: boolean
   postId: string

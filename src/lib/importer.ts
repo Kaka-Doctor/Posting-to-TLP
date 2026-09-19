@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { log } from '@/lib/settings'
-import { exchangeLongLivedToken, fetchPages } from '@/lib/meta'
+import { exchangeLongLivedToken, fetchPages, validatePageToken } from '@/lib/meta'
 import { promises as fs } from 'fs'
 import path from 'path'
 
@@ -105,6 +105,9 @@ export interface DataConfig {
   // the agent re-connects to that page on the next start / cron hit.
   pageId?: string
   pageName?: string
+  // Permanent page token. Preferred connection path: connects without a
+  // valid user token (page tokens derived from long-lived user tokens never
+  // expire).
   pageAccessToken?: string
   igUserId?: string
   igUsername?: string
@@ -176,6 +179,7 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
     metaUserToken: process.env.META_ACCESS_TOKEN,
     appId: process.env.META_APP_ID,
     appSecret: process.env.META_APP_SECRET,
+    pageAccessToken: process.env.META_PAGE_TOKEN,
     publicBaseUrl: process.env.PUBLIC_BASE_URL,
   }
   for (const key of Object.keys(envSources)) {
@@ -271,16 +275,17 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
   const rawToken = resolved.metaUserToken
   const cfgPage = resolved.pageId
   const cfgIg = resolved.igUsername
+  const cfgPageToken = resolved.pageAccessToken
   const tokenRotated = Boolean(rawToken && rawToken !== settings.configTokenSeen)
   const pageSwitched = Boolean(
     (cfgPage && cfgPage !== settings.pageId) ||
     (cfgIg && cfgIg !== settings.igUsername)
   )
-  if (rawToken && (!settings.pageAccessToken || tokenRotated || pageSwitched)) {
+  if ((rawToken || cfgPageToken) && (!settings.pageAccessToken || tokenRotated || pageSwitched)) {
     summary.connection = await autoConnect(rawToken, resolved.appId || settings.appId, resolved.appSecret || settings.appSecret, {
       pageId: cfgPage,
       igUsername: cfgIg,
-    })
+    }, cfgPageToken)
   } else if (summary.connection === 'skipped' && settings.pageAccessToken) {
     summary.connection = 'already'
   }
@@ -296,15 +301,46 @@ export async function importFromDataFolder(): Promise<ImportSummary> {
   return summary
 }
 
-/** Exchange token → list pages → pick the configured/IG-linked page → save connection.
- *  Preference order: pageId from config → igUsername from config → the page
- *  already saved in the DB → first page with Instagram → first page. */
+/** Connect via the permanent page token first, then the user-token exchange
+ *  path as fallback. Preference order for the page: pageId from config →
+ *  igUsername from config → the page already saved in the DB → first page with
+ *  Instagram → first page. */
 async function autoConnect(
   userToken: string,
   appId: string,
   appSecret: string,
-  prefer: { pageId?: string; igUsername?: string }
+  prefer: { pageId?: string; igUsername?: string },
+  configPageToken?: string
 ): Promise<ImportSummary['connection']> {
+  // ---- preferred: permanent page token straight from config/env ----
+  // Works even when metaUserToken has expired (page tokens never expire).
+  if (configPageToken && prefer.pageId) {
+    try {
+      const v = await validatePageToken(prefer.pageId, configPageToken)
+      if (v.ok) {
+        const configured = await db.settings.findUnique({ where: { id: 'settings' } })
+        await db.settings.update({
+          where: { id: 'settings' },
+          data: {
+            pageId: prefer.pageId,
+            pageName: v.pageName,
+            pageAccessToken: configPageToken,
+            igUserId: v.igUserId || configured?.igUserId || '',
+            igUsername: v.igUsername || configured?.igUsername || '',
+            tokenObtainedAt: new Date(),
+            tokenExpiresAt: null,
+            configTokenSeen: userToken || 'page-token',
+          },
+        })
+        await log('success', `Connected to page "${v.pageName}" via the permanent page token from data/config.json`)
+        return 'connected'
+      }
+      await log('info', `Page token from config rejected (${v.message}) — trying the user-token exchange path`)
+    } catch (e) {
+      await log('info', `Page token validation failed (${e instanceof Error ? e.message : 'unknown'}) — trying the user-token exchange path`)
+    }
+  }
+  if (!userToken) return 'failed'
   try {
     let token = userToken
     let expiresAt: Date | null = null
