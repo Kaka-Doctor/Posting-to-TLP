@@ -59,6 +59,18 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 > **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
 
+### One-time activation (2 minutes, done once ever)
+
+GitHub only lets workflow files be created from the **web interface** or by a token with the *workflows* permission. The repo's automation token has content permission only, so after cloning this repo there is exactly **one manual step**:
+
+1. Open **`data/workflow-template.yml`** in this repo (on github.com) — click **Raw** and copy everything.
+2. In the repo, click **Add file → Create new file**.
+3. Type the name exactly: `.github/workflows/social-agent.yml` (the `.github/workflows/` folders appear as you type `/`).
+4. Paste, then **Commit changes**.
+5. Open the repo's **Actions** tab — accept the "enable workflows" prompt if it appears.
+
+From that moment the agent is live on GitHub. *(Alternative: grant your fine-grained PAT* Workflows: Read and write *permission — Settings → Developer settings → Personal access tokens — and the file can be pushed for you automatically; a ready-to-push copy lives on the local `agent-workflow` branch.)*
+
 ## Quick start (local)
 
 ```bash
