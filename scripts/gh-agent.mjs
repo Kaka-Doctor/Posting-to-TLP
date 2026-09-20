@@ -360,17 +360,30 @@ async function main() {
   const doneToday = state.days[now.date] ?? {}
 
   if (ARG_FORCE || ARG_DRY) {
-    // next slot (today, else tomorrow) that has no successful post yet
-    for (const dayOffset of [0, 1]) {
-      const dk = dayOffset === 0 ? now.date : addDaysKey(now.date, 1)
-      for (const s of slots) {
-        if (dayOffset === 0 && s.minutes <= now.minutesOfDay) continue
-        const done = state.days[dk]?.[s.label]
-        if (done && (done.status === 'published' || done.status === 'partial')) continue
-        target = { ...s, date: dk }
-        break
+    // manual runs: first rescue the slot that is due RIGHT NOW — the most
+    // recent past slot with no successful post (includes slots already
+    // marked "missed"). So "Run workflow" + force after a quiet evening
+    // posts that evening's slot instead of jumping to tomorrow.
+    for (const s of [...slots].reverse()) {
+      if (s.minutes > now.minutesOfDay) continue
+      const done = state.days[now.date]?.[s.label]
+      if (done && (done.status === 'published' || done.status === 'partial')) continue
+      target = { ...s, date: now.date }
+      break
+    }
+    // otherwise the next future slot (today, else tomorrow)
+    if (!target) {
+      for (const dayOffset of [0, 1]) {
+        const dk = dayOffset === 0 ? now.date : addDaysKey(now.date, 1)
+        for (const s of slots) {
+          if (dayOffset === 0 && s.minutes <= now.minutesOfDay) continue
+          const done = state.days[dk]?.[s.label]
+          if (done && (done.status === 'published' || done.status === 'partial')) continue
+          target = { ...s, date: dk }
+          break
+        }
+        if (target) break
       }
-      if (target) break
     }
   } else {
     for (const s of slots) {

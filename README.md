@@ -31,14 +31,14 @@ data/config.json ─┘          │
               Post history + permalinks in the dashboard
 ```
 
-Missed a slot because the server was restarting? The **catch-up window** (default 60 min) posts it as soon as the agent is back online — without ever double-posting the same slot.
+Missed a slot because the server was restarting? The **catch-up window** (default 4 hours — `graceMinutes` in `data/config.json`) posts it as soon as the agent is back online — without ever double-posting the same slot. If even that passes, a manual **force** run still posts the same day's missing slot.
 
 ## Running on GitHub Actions — the agent hosted by GitHub itself
 
 **No web host at all.** GitHub's own servers run the agent for you, for free:
 
-- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes** (05:13–19:43 EAT window — the minutes are deliberately off-peak `:13/:43`, because GitHub drops scheduled runs at peak `:00/:30` minutes under load)
-- Each run checks out your repo on a GitHub runner and executes `node scripts/gh-agent.mjs`, which decides — using the **same slot logic as the app** — whether one of the slots from `data/config.json` (06:00 / 12:00 / 18:00 EAT) is due, with the 60-minute catch-up window
+- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 10 minutes** (05:07–22:57 EAT window — minutes are off-peak `x7`, because GitHub drops scheduled runs at peak `:00/:30` minutes; the density + the 4-hour catch-up window absorb GitHub's schedule drops)
+- Each run checks out your repo on a GitHub runner and executes `node scripts/gh-agent.mjs`, which decides — using the **same slot logic as the app** — whether one of the slots from `data/config.json` (06:00 / 12:00 / 18:00 EAT) is due, with the 4-hour catch-up window (`graceMinutes` in `data/config.json`)
 - It publishes to Instagram + Facebook **directly from the repo files** and commits the state file `data/state.json` (done slots, rotation counters, event log) back to the repo, so every run knows what already happened
 - Run history + logs live in your repo's **Actions tab**; a failed run shows red **and emails you** — nothing fails silently
 
@@ -52,16 +52,16 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 | Add photos & captions | Drop files in `data/photos/` + `data/captions.txt`, push (unchanged) |
 | Switch pages | Set `pageId` + a fresh `metaUserToken`, push — the agent mints the new page's permanent token and saves it back to the config |
 | Pause everything | Set `"autoPost": false` in `data/config.json` and push |
-| Post right now | Actions tab → **Social Media Agent** → **Run workflow** → tick `force` |
+| Post right now / rescue a missed slot | Actions tab → **Social Media Agent** → **Run workflow** → tick `force` — it posts the most recent unposted slot, even one already marked missed (same day) |
 | Test without publishing | Same, but tick `dryRun` |
 
-**Free-tier facts** (private repo, GitHub Free): ~30 runs/day ≈ 900–1500 of the 2000 monthly included minutes — comfortably inside the free quota. The agent's daily state commits keep the repository active, so scheduled workflows are never auto-disabled for inactivity. GitHub's cron can jitter by a few minutes at busy times; the 30-minute check cadence + catch-up window absorb that.
+**Free-tier facts** (private repo, GitHub Free): only runs that START bill minutes — realistically ~15–30 landed runs/day ≈ 600–1200 of the 2000 monthly included minutes. The agent's daily state commits keep the repository active, so scheduled workflows are never auto-disabled. GitHub both jitters AND silently drops scheduled fires under load (observed: 3 of 30 landed on 2026-09-20) — that is exactly why the cron fires every 10 minutes redundantly and why the catch-up window is 4 hours.
 
 > **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
 
 ### ✅ Already activated — nothing to set up
 
-`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately — every 30 minutes inside the 05:13–19:43 EAT window. The **first post goes out at the next slot time** (06:00 / 12:00 / 18:00 EAT). Watch it happen live: repo → **Actions** tab → **Social Media Agent**. Confirmed in production on 2026-09-20: schedule-triggered runs posted the 06:00 and 12:00 EAT slots fully automatically.
+`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately — every 10 minutes inside the 05:07–22:57 EAT window. The **first post goes out at the next slot time** (06:00 / 12:00 / 18:00 EAT). Watch it happen live: repo → **Actions** tab → **Social Media Agent**. Confirmed in production on 2026-09-20: schedule-triggered runs posted the 06:00 and 12:00 EAT slots fully automatically.
 
 <details>
 <summary>How activation works (reference / fresh clones)</summary>
