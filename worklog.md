@@ -197,3 +197,24 @@ Work Log:
 Stage Summary:
 - FULLY VERIFIED IN PRODUCTION: all 3 trigger types (push, dispatch, schedule) work; 2/3 slots posted today automatically; state commit-back and rotation functioning end-to-end.
 - Remaining user-side niceties only: more captions in data/captions.txt (currently 1 — every post carries the same text), engagement grows organically.
+
+---
+Task ID: robustness-after-missed-slot
+Agent: main (Super Z)
+Task: Diagnose the missed 18:00 slot; validate user's manual fixes; harden against GitHub schedule drops
+
+Work Log:
+- Diagnosis (run history via PAT): of ~30 scheduled cron fires on 2026-09-20, only 3 landed (runs at 12:17, 16:42, 20:02 EAT) — GitHub silently dropped 27, including both fires covering the 18:00 slot (15:13/15:43 UTC). The 16:43 fire finally ran at 20:02 EAT — 122 min past the slot, beyond the 60-min grace → agent permanently marked 18:00 "missed".
+- User's interventions (17:06 agent dispatch, 17:07 verify dispatch): both GREEN, no damage (workflows active, no file changes) — but couldn't rescue the slot: dispatched 4 min after the miss-marking, without force; and the old force logic only targeted FUTURE slots (it would have posted tomorrow's 06:00 instead).
+- Fix, 3 layers (commit 04edd9e):
+  1. Cron density: "7,17,27,37,47,57 2-19 * * *" — every 10 min, off-peak minutes, 05:07–22:57 EAT window (dropped fires cost 0 minutes; only landed runs bill).
+  2. "graceMinutes": 240 in data/config.json — any landed fire within 4h of a slot posts it (would have saved today's 18:00 via the 20:02 run).
+  3. gh-agent.mjs force branch: now rescues the most recent PAST unposted slot (incl. "missed") before falling back to future slots — "Run workflow + force" = same-day rescue button. Local dry-run verified: picks slot 18:00 on 2026-09-20.
+- README + workflow comments updated (new window, grace, force semantics, drop rationale).
+- Live rescue executed: dispatched force run (run #8, GREEN, 20:28 UTC) → 18:00 slot published 23:29 EAT — IG 17906903835507630-family id / DdhccyemH_6, FB 928221430380831_122141375631190335, photo index 2, state commit bd2269b. All 3 slots now published for 2026-09-20.
+- verify.yml self-triggered on the push (expected, path-filtered) and stayed GREEN with the new code.
+
+Stage Summary:
+- Root cause: GitHub schedule-fire drops (account-level deprioritization, observed 3/30 landing) + 60-min grace too narrow + force unable to resurrect missed slots. All three addressed.
+- Tomorrow's watch: 06:00 slot window = 06:00–10:00 EAT with 8+ fire opportunities; manual fallback = force dispatch.
+- Optional future upgrade (not implemented): external 10-min pinger (cron-job.org) hitting workflow_dispatch with a dispatch-only PAT for punctual posts, since dispatch is 100% reliable vs ~10% for cron.
