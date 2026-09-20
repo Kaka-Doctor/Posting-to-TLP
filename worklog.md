@@ -178,3 +178,22 @@ Stage Summary:
 - **The agent is LIVE in production on GitHub Actions**: photo 0/8 + caption posted to Instagram + Facebook at 06:06 EAT from a GitHub runner, state persisted back to the repo.
 - Next expected: schedule-triggered runs at :13/:43 (12:13 EAT slot 12:00 post, 18:13 EAT slot 18:00 post).
 - All trigger types verified except schedule (fix pushed, awaiting first :13/:43 fire).
+
+---
+Task ID: production-live-2
+Agent: main (Super Z)
+Task: Verify user's pages after first automated posts; confirm schedule trigger; retire canary
+
+Work Log:
+- User reported posts went out; verified live on both platforms via Meta Graph API (scripts/check-live-posts.mjs):
+  - 06:00 EAT slot → IG 17906903835507630 (DdflL8Wj5j4, 03:06:36Z) + FB 928221430380831_122141281101190335 (03:06:42Z), photo attached, caption intact
+  - 12:00 EAT slot → IG 17898566271601278 (DdgPuIxICHH, 09:18:16Z) + FB 928221430380831_122141318457190335 (09:18:23Z), photo attached, caption intact
+  - All 4 permalinks in data/state.json resolve to live posts; timestamps + IDs match exactly; rotation advanced photo 0 → 1
+- GitHub API (PAT now has Actions permission) shows 8 runs total; run #4 = schedule-triggered, GREEN, posted the 12:00 slot → **schedules are no longer withheld** (GitHub's registration heuristic self-resolved, as predicted). API now fully usable for run monitoring.
+- Cleaned up: deleted .github/workflows/schedule-probe.yml (canary, purpose served); README window note corrected to 05:13–19:43 EAT + production confirmation line.
+- verify.yml kept (fires only on workflow-file changes — a rehearsed safety net, documented in README).
+- Next expected automation: 15:13 UTC cron fire → 18:00 EAT slot post (~18:13–18:43 EAT).
+
+Stage Summary:
+- FULLY VERIFIED IN PRODUCTION: all 3 trigger types (push, dispatch, schedule) work; 2/3 slots posted today automatically; state commit-back and rotation functioning end-to-end.
+- Remaining user-side niceties only: more captions in data/captions.txt (currently 1 — every post carries the same text), engagement grows organically.

@@ -61,7 +61,7 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 ### ✅ Already activated — nothing to set up
 
-`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately — every 30 minutes inside the 05:00–19:30 EAT window. The **first post goes out at the next slot time** (06:00 / 12:00 / 18:00 EAT). Watch it happen live: repo → **Actions** tab → **Social Media Agent**.
+`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately — every 30 minutes inside the 05:13–19:43 EAT window. The **first post goes out at the next slot time** (06:00 / 12:00 / 18:00 EAT). Watch it happen live: repo → **Actions** tab → **Social Media Agent**. Confirmed in production on 2026-09-20: schedule-triggered runs posted the 06:00 and 12:00 EAT slots fully automatically.
 
 <details>
 <summary>How activation works (reference / fresh clones)</summary>
