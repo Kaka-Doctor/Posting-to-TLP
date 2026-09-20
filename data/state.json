@@ -1,6 +1,33 @@
 {
   "version": 1,
-  "days": {},
-  "rotation": { "photoIndex": 0, "captionIndex": 0 },
-  "events": []
+  "days": {
+    "2026-09-20": {
+      "06:00": {
+        "status": "published",
+        "at": "2026-09-20T03:06:46.763Z",
+        "photo": "Picsart_25-09-04_02-50-15-437.jpg",
+        "ig": {
+          "id": "17906903835507630",
+          "permalink": "https://www.instagram.com/p/DdflL8Wj5j4/"
+        },
+        "fb": {
+          "id": "928221430380831_122141281101190335",
+          "permalink": "https://www.facebook.com/122141281113190335/posts/122141281101190335"
+        }
+      }
+    }
+  },
+  "rotation": {
+    "photoIndex": 1,
+    "captionIndex": 0
+  },
+  "events": [
+    {
+      "ts": "2026-09-20T03:06:46.763Z",
+      "level": "success",
+      "date": "2026-09-20",
+      "slot": "06:00",
+      "message": "06:00 Auto: published — \"Picsart_25-09-04_02-50-15-437.jpg\" | IG ✓ | FB ✓"
+    }
+  ]
 }
