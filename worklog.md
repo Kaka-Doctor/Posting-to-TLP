@@ -126,3 +126,19 @@ Stage Summary:
 - THE blocker is cleared: the agent is fully hosted on GitHub Actions — no Vercel/Netlify/server needed; scheduled posting requires zero further user setup.
 - Independent verification channels: (1) user's Actions tab, (2) `agent: state update …` commits on data/state.json via git fetch, (3) Meta IG media list via page token.
 - Open item: first verify marker not observed yet — user should open the repo's Actions tab once (accept enable prompt if shown); red runs email the user automatically.
+
+---
+Task ID: workflow-activation-2
+Agent: main (Super Z)
+Task: Diagnose why pushed workflows produce no runs; hand off user-side activation check
+
+Work Log:
+- Added `.github/workflows/trigger-check.yml` (b05d785) — minimal `on: push` (unfiltered, immune to paths edge cases) workflow that commits a one-line ping to data/runner-verified.log with GITHUB_TOKEN. 9 poll rounds: no marker.
+- Conclusion: 3 pushes (verify.yml ×2, trigger-check ×1) → 0 observed runs in 30+ min while githubstatus.com reports Actions operational. Leading hypotheses: (a) the repo's Actions was never activated — the Actions tab was never opened and needs the one-time "enable workflows" click; (b) pushes made via fine-grained PAT don't create workflow runs on this repo. Scheduled cron (02:00 UTC) is unaffected by either — schedules don't depend on push events.
+- trigger-check.yml is intentionally left in place as the user's 10-second self-test: Actions tab → "Trigger check" → Run workflow → green run + ping line in data/runner-verified.log. Retire it once activation is confirmed.
+- All PAT-accessible verification exhausted (contents/status/check-runs/actions APIs all 403 for read; dispatch 403).
+
+Stage Summary:
+- Everything automatable is DONE and pushed: workflow live on main (42e3c9b), verify.yml (745b3a6/257fb96), trigger-check.yml (b05d785), README activation docs, worklog (62d43fe).
+- Single remaining user action: open https://github.com/Kaka-Doctor/Posting-to-social-medias/actions — click enable if prompted; then optionally "Trigger check" → Run workflow as self-test.
+- First scheduled run: 02:00 UTC (05:00 EAT) no-op check; first real post: 06:00 EAT — visible on IG/FB and as the "agent: state update …" commit on data/state.json.
