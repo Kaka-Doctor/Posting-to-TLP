@@ -1,0 +1,16 @@
+name: Schedule probe
+
+# Diagnostic: does ANY schedule trigger fire on this repo?
+# Fires every 10 min, echoes only. Deleted after diagnosis.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: echo "probe fired at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
