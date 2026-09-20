@@ -1,0 +1,87 @@
+name: Verify agent runner
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Safe rehearsal of the scheduled pipeline — publishes NOTHING.
+#
+#  Runs automatically whenever THIS FILE changes (so every tweak to the
+#  automation is proven on a real GitHub runner before it goes live), or on
+#  demand: Actions tab → "Verify agent runner" → Run workflow.
+#
+#  It performs the exact steps of a scheduled run:
+#    checkout → Node 20 → photo normalization → agent dry-run (--force
+#  picks the next slot's content but the dry-run flag makes it log-only,
+#  including a LIVE Meta token check from GitHub's own IPs) → commit the
+#  outcome to data/runner-verified.log.
+#
+#  If the agent part fails, the job still records the log (so the failure is
+#  readable from the repo) and then fails loudly.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    paths:
+      - ".github/workflows/verify.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: verify-agent
+  cancel-in-progress: false
+
+permissions:
+  contents: write # to commit the verification log back
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Same normalize step as the scheduled workflow
+      - name: Normalize photos
+        run: |
+          mkdir -p /tmp/norm && cd /tmp/norm
+          npm init -y >/dev/null 2>&1
+          npm install sharp --silent --no-audit --no-fund >/dev/null 2>&1 || true
+          cd "$GITHUB_WORKSPACE"
+          NODE_PATH=/tmp/norm/node_modules node scripts/normalize-photos.js \
+            || echo "normalize skipped (non-fatal — the agent posts files as-is)"
+
+      - name: Dry-run the agent (next slot's pick, nothing published)
+        run: |
+          node scripts/gh-agent.mjs --dry-run --force > /tmp/agent-dry.log 2>&1
+          STATUS=$?
+          echo "AGENT_STATUS=$STATUS" >> "$GITHUB_ENV"
+          cat /tmp/agent-dry.log
+          exit $STATUS
+
+      # Runs even if the dry-run failed, so the log always lands in the repo
+      - name: Record outcome in data/runner-verified.log
+        if: always()
+        run: |
+          git config user.name "social-agent-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          {
+            echo ""
+            echo "── $(date -u '+%Y-%m-%d %H:%M UTC') ─ agent-status: ${AGENT_STATUS:-unknown} (0 = OK)"
+            sed "s/^/  /" /tmp/agent-dry.log
+          } >> data/runner-verified.log
+          git add data/runner-verified.log
+          if git diff --cached --quiet; then
+            echo "log unchanged — no commit"
+          else
+            git commit -m "agent: runner verified (dry-run status ${AGENT_STATUS:-?})"
+            git push || (git pull --rebase origin main && git push)
+          fi
+
+      - name: Fail loudly if the dry-run failed
+        if: always()
+        run: |
+          if [ "${AGENT_STATUS:-0}" != "0" ]; then
+            echo "::error::Agent dry-run failed — see data/runner-verified.log for the exact error"
+            exit 1
+          fi

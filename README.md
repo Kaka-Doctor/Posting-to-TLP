@@ -59,17 +59,20 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 > **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
 
-### One-time activation (2 minutes, done once ever)
+### ✅ Already activated — nothing to set up
 
-GitHub only lets workflow files be created from the **web interface** or by a token with the *workflows* permission. The repo's automation token has content permission only, so after cloning this repo there is exactly **one manual step**:
+`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately — every 30 minutes inside the 05:00–19:30 EAT window. The **first post goes out at the next slot time** (06:00 / 12:00 / 18:00 EAT). Watch it happen live: repo → **Actions** tab → **Social Media Agent**.
 
-1. Open **`data/workflow-template.yml`** in this repo (on github.com) — click **Raw** and copy everything.
-2. In the repo, click **Add file → Create new file**.
-3. Type the name exactly: `.github/workflows/social-agent.yml` (the `.github/workflows/` folders appear as you type `/`).
-4. Paste, then **Commit changes**.
-5. Open the repo's **Actions** tab — accept the "enable workflows" prompt if it appears.
+<details>
+<summary>How activation works (reference / fresh clones)</summary>
 
-From that moment the agent is live on GitHub. *(Alternative: grant your fine-grained PAT* Workflows: Read and write *permission — Settings → Developer settings → Personal access tokens — and the file can be pushed for you automatically; a ready-to-push copy lives on the local `agent-workflow` branch.)*
+GitHub requires the special *workflows* permission for any token that creates or modifies workflow files. This repo's automation token has it, so the file was pushed automatically. In a fresh clone with a token that lacks it, either grant it (Settings → Developer settings → Personal access tokens → **Workflows: Read and write**) or paste `data/workflow-template.yml` into a new file named `.github/workflows/social-agent.yml` via the web UI.
+
+</details>
+
+**Every automation change is rehearsed safely.** A second workflow, `.github/workflows/verify.yml`, fires automatically whenever the workflow files change: it performs a **dry-run of the full scheduled pipeline on a real GitHub runner** — checkout → photo normalization → agent connects to Meta and picks the next slot's content — and appends the outcome to `data/runner-verified.log`. Nothing is ever published. You can also run it anytime: Actions tab → **Verify agent runner** → Run workflow.
+
+> **Optional — trigger runs from scripts:** the browser "Run workflow" button always works. To also dispatch runs via the GitHub API (curl, scripts), grant the fine-grained PAT **Actions: Read and write** as well. The schedule itself needs no permissions at all.
 
 ## Quick start (local)
 
