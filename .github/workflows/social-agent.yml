@@ -3,10 +3,17 @@ name: Social Media Agent
 # ─────────────────────────────────────────────────────────────────────────────
 #  The agent runs ON GitHub — no web host needed (no Vercel / Netlify / server).
 #
-#  GitHub's cron fires this workflow every 30 minutes between 02:00 and 16:30
-#  UTC (05:00–19:30 EAT). The agent script itself decides whether one of the
-#  posting slots from data/config.json (06:00 / 12:00 / 18:00 EAT by default)
-#  is due, using a 60-minute catch-up window.
+#  GitHub's cron fires this workflow every 30 minutes at :13 and :43 past
+#  the hour, between 02:13 and 16:43 UTC (05:13–19:43 EAT). The agent script
+#  itself decides whether one of the posting slots from data/config.json
+#  (06:00 / 12:00 / 18:00 EAT by default) is due, using a 60-minute catch-up
+#  window — so a slot is still posted on time if the runner fires a few
+#  minutes past the slot.
+#
+#  NOTE: the minutes are deliberately OFF-PEAK (:13/:43, not :00/:30).
+#  GitHub drops or heavily delays scheduled runs at peak minutes (start of
+#  the hour) when Actions load is high — observed live: three consecutive
+#  :00/:30 fires never started, while off-peak minutes fire reliably.
 #
 #  ⟶ To CHANGE posting times: edit "slots" (and "timezone") in data/config.json
 #    only — this file never needs to change.
@@ -21,7 +28,7 @@ name: Social Media Agent
 
 on:
   schedule:
-    - cron: "*/30 2-16 * * *"
+    - cron: "13,43 2-16 * * *"
   workflow_dispatch:
     inputs:
       dryRun:

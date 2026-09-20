@@ -157,4 +157,21 @@ Work Log:
 
 Stage Summary:
 - GitHub runner pipeline fully validated end-to-end (dry-run incl. live Meta connect from GitHub IPs); only the marker filename was broken, now fixed.
-- GITHUB_TOKEN push-back path now proven working; remaining: confirm green verify run + first scheduled (event=schedule) run appearance + the 06:00 EAT real post.
+
+---
+Task ID: production-live
+Agent: main (Super Z)
+Task: First real GitHub-hosted post; fix peak-minute cron drops; full production verification
+
+Work Log:
+- verify.yml run #3 (self-triggered by the fix push): GREEN — first-ever marker commit (aa12d49) landed via GITHUB_TOKEN with the full runner log in data/runner-verified.txt: connect ✓, clock 05:19 EAT ✓, library 8+1 ✓, pick slot 06:00/photo 0 ✓, publish paths armed ✓, nothing published.
+- Schedule-trigger gap: 02:00/02:30/03:00 UTC fires never started (0 schedule runs) while push/dispatch triggers worked — matches GitHub's documented behavior of dropping scheduled runs at peak minutes (:00/:30) under load.
+- 06:00 EAT slot (due, within catch-up window): dispatched a plain auto run at 03:06 UTC → run #3 GREEN in 20s → **FIRST REAL GITHUB-HOSTED POST PUBLISHED**.
+- Triple verification: (1) state commit 910ee4e "agent: state update 2026-09-20 03:06 UTC" — slot 06:00 status=published, IG id 17906903835507630, FB id 928221430380831_122141281101190335, rotation → photo 1; (2) Meta Graph API live query returns the identical IG media (permalink DdflL8Wj5j4, 03:06:36) and FB feed post (03:06:42); (3) run log green.
+- Cron fix: `*/30 2-16 * * *` → `13,43 2-16 * * *` (off-peak minutes, per GitHub's own guidance; workflow comment documents the live-observed drops). Also explicitly PUT /enable on the workflow (204) to force schedule registration.
+- README updated (off-peak window note 05:13–19:43 EAT).
+
+Stage Summary:
+- **The agent is LIVE in production on GitHub Actions**: photo 0/8 + caption posted to Instagram + Facebook at 06:06 EAT from a GitHub runner, state persisted back to the repo.
+- Next expected: schedule-triggered runs at :13/:43 (12:13 EAT slot 12:00 post, 18:13 EAT slot 18:00 post).
+- All trigger types verified except schedule (fix pushed, awaiting first :13/:43 fire).

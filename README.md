@@ -37,7 +37,7 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 **No web host at all.** GitHub's own servers run the agent for you, for free:
 
-- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes** (05:00–19:30 EAT window)
+- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes** (05:13–19:43 EAT window — the minutes are deliberately off-peak `:13/:43`, because GitHub drops scheduled runs at peak `:00/:30` minutes under load)
 - Each run checks out your repo on a GitHub runner and executes `node scripts/gh-agent.mjs`, which decides — using the **same slot logic as the app** — whether one of the slots from `data/config.json` (06:00 / 12:00 / 18:00 EAT) is due, with the 60-minute catch-up window
 - It publishes to Instagram + Facebook **directly from the repo files** and commits the state file `data/state.json` (done slots, rotation counters, event log) back to the repo, so every run knows what already happened
 - Run history + logs live in your repo's **Actions tab**; a failed run shows red **and emails you** — nothing fails silently
