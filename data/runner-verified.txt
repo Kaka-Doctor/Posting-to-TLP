@@ -10,3 +10,15 @@
     Instagram (teachers_lesson_plan): hidden FB photo → CDN url → container → media_publish
     Facebook (Teacher's Lesson Plan): binary upload with caption
   [dry-run] nothing published, state unchanged
+
+── 2026-09-20 17:07 UTC ─ agent-status: 0 (0 = OK)
+  [connect] page token (permanent): valid → Teacher's Lesson Plan | IG: @teachers_lesson_plan
+  [clock] 2026-09-20 20:07 (Africa/Dar_es_Salaam) | slots: 06:00, 12:00, 18:00 | grace 60m | mode: DRY-RUN
+  [library] 8 photo(s), 1 caption(s)
+  [pick] slot 06:00 Auto on 2026-09-21
+  [pick] photo: Picsart_25-09-04_09-23-13-446.jpg (rotation index 2 of 8)
+  [pick] caption: "✍️ 𝐓𝐄𝐀𝐂𝐇𝐄𝐑'𝐒 𝐋𝐄𝐒𝐎𝐍 𝐏𝐋𝐀𝐍   📒 𝐀𝐧𝐝𝐚𝐥𝐢𝐨 𝐥𝐚 𝐒𝐨…" (1025 chars)
+  [dry-run] would publish:
+    Instagram (teachers_lesson_plan): hidden FB photo → CDN url → container → media_publish
+    Facebook (Teacher's Lesson Plan): binary upload with caption
+  [dry-run] nothing published, state unchanged
