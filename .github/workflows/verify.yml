@@ -15,6 +15,9 @@ name: Verify agent runner
 #
 #  If the agent part fails, the job still records the log (so the failure is
 #  readable from the repo) and then fails loudly.
+#
+#  Note: re-saving this file re-triggers the rehearsal — a built-in way to
+#  self-test the whole automation at any time.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
