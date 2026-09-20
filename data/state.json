@@ -29,13 +29,22 @@
         }
       },
       "18:00": {
-        "status": "missed",
-        "at": "2026-09-20T17:02:28.692Z"
+        "status": "published",
+        "at": "2026-09-20T20:29:00.348Z",
+        "photo": "Picsart_25-09-04_09-23-13-446.jpg",
+        "ig": {
+          "id": "18114421606819233",
+          "permalink": "https://www.instagram.com/p/DdhccyemH_6/"
+        },
+        "fb": {
+          "id": "928221430380831_122141375631190335",
+          "permalink": "https://www.facebook.com/122141281113190335/posts/122141375631190335"
+        }
       }
     }
   },
   "rotation": {
-    "photoIndex": 2,
+    "photoIndex": 3,
     "captionIndex": 0
   },
   "events": [
@@ -59,6 +68,13 @@
       "date": "2026-09-20",
       "slot": "18:00",
       "message": "Slot 18:00 missed (outside 60-min catch-up window)"
+    },
+    {
+      "ts": "2026-09-20T20:29:00.349Z",
+      "level": "success",
+      "date": "2026-09-20",
+      "slot": "18:00",
+      "message": "18:00 Auto: published — \"Picsart_25-09-04_09-23-13-446.jpg\" | IG ✓ | FB ✓"
     }
   ]
 }
