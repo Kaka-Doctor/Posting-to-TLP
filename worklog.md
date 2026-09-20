@@ -170,6 +170,9 @@ Work Log:
 - Triple verification: (1) state commit 910ee4e "agent: state update 2026-09-20 03:06 UTC" — slot 06:00 status=published, IG id 17906903835507630, FB id 928221430380831_122141281101190335, rotation → photo 1; (2) Meta Graph API live query returns the identical IG media (permalink DdflL8Wj5j4, 03:06:36) and FB feed post (03:06:42); (3) run log green.
 - Cron fix: `*/30 2-16 * * *` → `13,43 2-16 * * *` (off-peak minutes, per GitHub's own guidance; workflow comment documents the live-observed drops). Also explicitly PUT /enable on the workflow (204) to force schedule registration.
 - README updated (off-peak window note 05:13–19:43 EAT).
+- Schedule-trigger investigation CONCLUDED: 0 schedule runs across 6+ windows, 2 cron configs, 3 workflows (incl. a fresh */10 probe workflow) — while push triggers (5/5 instant) and workflow_dispatch (4/4) work perfectly and githubstatus.com = operational. Also did a disable→enable cycle (both 204). Conclusion: GitHub is withholding SCHEDULED runs on this repo — a registration/anti-abuse heuristic, not a config error; typically self-resolves with account/repo activity. Account Kaka-Doctor created 2024-09-27.
+- Probe converted to an hourly canary (.github/workflows/schedule-probe.yml, cron 45 * * * *, a6c761c): the moment a canary run appears, schedules work again and the agent posts all slots automatically; file is to be deleted once confirmed.
+- Fallback for slots while schedules are withheld: manual Run workflow (no boxes) within a slot's 60-min catch-up window, or "force" anytime — documented in README (Post right now / Test without publishing rows).
 
 Stage Summary:
 - **The agent is LIVE in production on GitHub Actions**: photo 0/8 + caption posted to Instagram + Facebook at 06:06 EAT from a GitHub runner, state persisted back to the repo.
