@@ -14,11 +14,24 @@
           "id": "928221430380831_122141281101190335",
           "permalink": "https://www.facebook.com/122141281113190335/posts/122141281101190335"
         }
+      },
+      "12:00": {
+        "status": "published",
+        "at": "2026-09-20T09:18:29.654Z",
+        "photo": "Picsart_25-09-04_02-51-21-749.jpg",
+        "ig": {
+          "id": "17898566271601278",
+          "permalink": "https://www.instagram.com/p/DdgPuIxICHH/"
+        },
+        "fb": {
+          "id": "928221430380831_122141318457190335",
+          "permalink": "https://www.facebook.com/122141281113190335/posts/122141318457190335"
+        }
       }
     }
   },
   "rotation": {
-    "photoIndex": 1,
+    "photoIndex": 2,
     "captionIndex": 0
   },
   "events": [
@@ -28,6 +41,13 @@
       "date": "2026-09-20",
       "slot": "06:00",
       "message": "06:00 Auto: published — \"Picsart_25-09-04_02-50-15-437.jpg\" | IG ✓ | FB ✓"
+    },
+    {
+      "ts": "2026-09-20T09:18:29.654Z",
+      "level": "success",
+      "date": "2026-09-20",
+      "slot": "12:00",
+      "message": "12:00 Auto: published — \"Picsart_25-09-04_02-51-21-749.jpg\" | IG ✓ | FB ✓"
     }
   ]
 }
