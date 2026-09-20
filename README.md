@@ -70,7 +70,7 @@ GitHub requires the special *workflows* permission for any token that creates or
 
 </details>
 
-**Every automation change is rehearsed safely.** A second workflow, `.github/workflows/verify.yml`, fires automatically whenever the workflow files change: it performs a **dry-run of the full scheduled pipeline on a real GitHub runner** — checkout → photo normalization → agent connects to Meta and picks the next slot's content — and appends the outcome to `data/runner-verified.log`. Nothing is ever published. You can also run it anytime: Actions tab → **Verify agent runner** → Run workflow.
+**Every automation change is rehearsed safely.** A second workflow, `.github/workflows/verify.yml`, fires automatically whenever the workflow files change: it performs a **dry-run of the full scheduled pipeline on a real GitHub runner** — checkout → photo normalization → agent connects to Meta and picks the next slot's content — and appends the outcome to `data/runner-verified.txt`. Nothing is ever published. You can also run it anytime: Actions tab → **Verify agent runner** → Run workflow.
 
 > **Optional — trigger runs from scripts:** the browser "Run workflow" button always works. To also dispatch runs via the GitHub API (curl, scripts), grant the fine-grained PAT **Actions: Read and write** as well. The schedule itself needs no permissions at all.
 
