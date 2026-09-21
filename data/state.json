@@ -150,10 +150,48 @@
           "id": "122141469825190335"
         }
       }
+    },
+    "2026-09-24": {
+      "06:00": {
+        "status": "scheduled",
+        "publishTime": "2026-09-24T03:00:00.000Z",
+        "at": "2026-09-21T22:15:08.194Z",
+        "photo": "Picsart_25-09-04_09-26-29-737.jpg",
+        "ig": {
+          "id": "18126008032871727"
+        },
+        "fb": {
+          "id": "122141516469190335"
+        }
+      },
+      "12:00": {
+        "status": "scheduled",
+        "publishTime": "2026-09-24T09:00:00.000Z",
+        "at": "2026-09-21T22:15:27.577Z",
+        "photo": "Picsart_26-01-05_14-52-51-096.jpg",
+        "ig": {
+          "id": "18105697406612028"
+        },
+        "fb": {
+          "id": "122141516625190335"
+        }
+      },
+      "18:00": {
+        "status": "scheduled",
+        "publishTime": "2026-09-24T15:00:00.000Z",
+        "at": "2026-09-21T22:15:45.577Z",
+        "photo": "Picsart_26-01-05_14-55-02-085.jpg",
+        "ig": {
+          "id": "18068170451502653"
+        },
+        "fb": {
+          "id": "122141516727190335"
+        }
+      }
     }
   },
   "rotation": {
-    "photoIndex": 3,
+    "photoIndex": 6,
     "captionIndex": 0
   },
   "events": [
@@ -254,6 +292,27 @@
       "date": "2026-09-21",
       "slot": "18:00",
       "message": "18:00 published by Meta on schedule — IG ✓ https://www.instagram.com/p/DdjNhsmGOeZ/ | FB ✓ https://www.facebook.com/photo.php?fbid=122141468961190335&set=a.122103642315190335&type=3"
+    },
+    {
+      "ts": "2026-09-21T22:15:08.194Z",
+      "level": "info",
+      "date": "2026-09-24",
+      "slot": "06:00",
+      "message": "06:00 pre-scheduled via Meta (publishes 2026-09-24T03:00:00.000Z) — \"Picsart_25-09-04_09-26-29-737.jpg\" | IG ✓ | FB ✓"
+    },
+    {
+      "ts": "2026-09-21T22:15:27.577Z",
+      "level": "info",
+      "date": "2026-09-24",
+      "slot": "12:00",
+      "message": "12:00 pre-scheduled via Meta (publishes 2026-09-24T09:00:00.000Z) — \"Picsart_26-01-05_14-52-51-096.jpg\" | IG ✓ | FB ✓"
+    },
+    {
+      "ts": "2026-09-21T22:15:45.577Z",
+      "level": "info",
+      "date": "2026-09-24",
+      "slot": "18:00",
+      "message": "18:00 pre-scheduled via Meta (publishes 2026-09-24T15:00:00.000Z) — \"Picsart_26-01-05_14-55-02-085.jpg\" | IG ✓ | FB ✓"
     }
   ]
 }
