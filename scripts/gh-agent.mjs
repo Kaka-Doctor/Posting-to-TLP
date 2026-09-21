@@ -403,11 +403,14 @@ async function reconcileScheduled(page, state) {
         } catch { /* not confirmable yet */ }
       }
       if (rec.fb?.id) {
-        try {
-          const p = await graphGet(String(rec.fb.id), { fields: 'permalink_url,created_time', access_token: page.pageToken })
-          const live = p.permalink_url && p.created_time && new Date(p.created_time).getTime() <= Date.now() + 60000
-          if (live) { fbOk = true; fbPerma = String(p.permalink_url) }
-        } catch { /* not confirmable yet */ }
+        // photo id while unpublished; pageId_photoId once it becomes a feed post
+        for (const cid of [String(rec.fb.id), `${page.pageId}_${String(rec.fb.id)}`]) {
+          try {
+            const p = await graphGet(cid, { fields: 'permalink_url,created_time', access_token: page.pageToken })
+            const live = p.permalink_url && p.created_time && new Date(p.created_time).getTime() <= Date.now() + 60000
+            if (live) { fbOk = true; fbPerma = String(p.permalink_url); rec.fb.id = cid; break }
+          } catch { /* not confirmable via this id yet */ }
+        }
       }
       if (igOk || fbOk) {
         rec.status = igOk && fbOk ? 'published' : 'partial'

@@ -218,3 +218,24 @@ Stage Summary:
 - Root cause: GitHub schedule-fire drops (account-level deprioritization, observed 3/30 landing) + 60-min grace too narrow + force unable to resurrect missed slots. All three addressed.
 - Tomorrow's watch: 06:00 slot window = 06:00–10:00 EAT with 8+ fire opportunities; manual fallback = force dispatch.
 - Optional future upgrade (not implemented): external 10-min pinger (cron-job.org) hitting workflow_dispatch with a dispatch-only PAT for punctual posts, since dispatch is 100% reliable vs ~10% for cron.
+
+---
+Task ID: meta-native-scheduling
+Agent: main (Super Z)
+Task: Agent failed to post 2026-09-21; root-cause and make posting independent of GitHub's schedule reliability
+
+Work Log:
+- Diagnosis: exactly ONE scheduled run landed today (07:54 UTC = 10:54 EAT, of ~70 fires with the 10-min density). GitHub throttles scheduled runs to roughly 1 per 5-11 hours regardless of cron density — account-level, not config. User covered 06:00 manually at 09:01 EAT; 12:00 went out to nobody; 18:00 pending. Answer to "will it work by itself as time goes on?": GitHub throttling eases with account age but is NOT dependable — so the architecture changed instead.
+- New model (commit bc61ddf, follow-up 484af29 state): every landed run PRE-SCHEDULES the next scheduleDays (3) days with Meta's own scheduled publishing:
+  - IG: container with publish_time (ISO UTC) → media_publish → media sits in SCHEDULED state on Meta's servers
+  - FB: photo upload with published=false + scheduled_publish_time (unix sec)
+  - state records status "scheduled" + publishTime + ids; auto/force treat it as done; reconcile on later runs swaps in permalinks once posts go live (FB tries both photo id and pageId_photoId)
+  - autoPost=false now CANCELS pending scheduled posts (DELETE IG media / FB photo) so the pause is real
+  - zonedToUtc 2-pass Intl conversion (verified: 06:00 EAT → 03:00 UTC, DST-aware for other zones); horizon = slots ≥ now+20 min across 3 days; IG 25-scheduled cap fine at 9
+  - cron simplified to "13,43 * * * *" (24h, off-peak) — density is pointless under account throttling; landed runs (~2-5/day) each re-book the horizon
+- Live rollout (dispatch run #10, GREEN): 12:00 slot catch-up posted 15:56 EAT (IG DdjNfHymCkT + FB 122141468805190335); 7 slots pre-scheduled — today 18:00, and 2026-09-22/23 06:00+12:00+18:00 — verified via Graph API that the IG media objects and FB scheduled photos exist on Meta.
+- verify.yml GREEN with new code (self-triggered on push).
+
+Stage Summary:
+- Posting is now punctual by construction: Meta's servers publish at exactly 06:00/12:00/18:00 EAT; ONE GitHub fire per ~2 days keeps the horizon full; catch-up + force remain as fallbacks.
+- Watch: 18:00 EAT tonight appears with zero GitHub involvement; tomorrow all 3 slots punctual. Reconciliation fills permalinks on the next landed run.
