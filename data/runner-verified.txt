@@ -22,3 +22,21 @@
     Instagram (teachers_lesson_plan): hidden FB photo → CDN url → container → media_publish
     Facebook (Teacher's Lesson Plan): binary upload with caption
   [dry-run] nothing published, state unchanged
+
+── 2026-09-21 12:56 UTC ─ agent-status: 0 (0 = OK)
+  [connect] page token (permanent): valid → Teacher's Lesson Plan | IG: @teachers_lesson_plan
+  [clock] 2026-09-21 15:56 (Africa/Dar_es_Salaam) | slots: 06:00, 12:00, 18:00 | grace 240m | horizon 3d | mode: DRY-RUN
+  [library] 8 photo(s), 1 caption(s)
+  [pick] slot 12:00 on 2026-09-21 → photo: Picsart_25-09-04_09-26-29-737.jpg (rotation index 3 of 8)
+  [dry-run] would publish now:
+    Instagram (teachers_lesson_plan): hidden FB photo → CDN url → container → media_publish
+    Facebook (Teacher's Lesson Plan): binary upload with caption
+  [dry-run] would pre-schedule 7 slot(s) via Meta (published exactly on time):
+    2026-09-21 18:00 → "Picsart_26-01-05_14-52-51-096.jpg" → Meta publishes at 2026-09-21T15:00:00.000Z
+    2026-09-22 06:00 → "Picsart_26-01-05_14-55-02-085.jpg" → Meta publishes at 2026-09-22T03:00:00.000Z
+    2026-09-22 12:00 → "Picsart_26-02-25_11-22-27-567.jpg" → Meta publishes at 2026-09-22T09:00:00.000Z
+    2026-09-22 18:00 → "Picsart_26-06-04_13-18-33-146.jpg" → Meta publishes at 2026-09-22T15:00:00.000Z
+    2026-09-23 06:00 → "Picsart_25-09-04_02-50-15-437.jpg" → Meta publishes at 2026-09-23T03:00:00.000Z
+    2026-09-23 12:00 → "Picsart_25-09-04_02-51-21-749.jpg" → Meta publishes at 2026-09-23T09:00:00.000Z
+    2026-09-23 18:00 → "Picsart_25-09-04_09-23-13-446.jpg" → Meta publishes at 2026-09-23T15:00:00.000Z
+  [dry-run] nothing published or scheduled, state unchanged
