@@ -1,0 +1,730 @@
+     1→#!/usr/bin/env node
+     2→/**
+     3→ * ─────────────────────────────────────────────────────────────────────────────
+     4→ *  Social Media Auto-Posting Agent — standalone GitHub Actions runner
+     5→ * ─────────────────────────────────────────────────────────────────────────────
+     6→ *  Runs on GitHub's servers (`.github/workflows/social-agent.yml`), triggered
+     7→ *  by GitHub's cron. No web server, no database, no external image host, no
+     8→ *  npm installs — plain Node (>= 18) reading the repo itself.
+     9→ *
+    10→ *  RELIABILITY MODEL: GitHub silently drops most scheduled runs on young
+    11→ *  accounts (observed live: 1 run per 5-11 hours, regardless of cron density).
+    12→ *  The agent therefore does NOT rely on firing at slot time. Every landed run
+    13→ *  PRE-SCHEDULES the next `scheduleDays` days of slots with Meta's own
+    14→ *  scheduled publishing (IG containers with publish_time, FB photos with
+    15→ *  scheduled_publish_time) — Meta then publishes them exactly on time, from
+    16→ *  Meta's servers. One landed run every ~2 days is enough. Landed runs also
+    17→ *  reconcile state once scheduled posts go live, and late direct posting
+    18→ *  remains as the catch-up fallback.
+    19→ *
+    20→ *  Everything configurable lives in data/config.json (the switch file):
+    21→ *    pageId / igUserId  → which page/account to post to
+    22→ *    slots / timezone   → when to post (cron here just checks often)
+    23→ *    pageAccessToken    → permanent page token (preferred)
+    24→ *    metaUserToken      → user token, used to re-derive a page token if the
+    25→ *                         permanent one ever stops working (rotation path)
+    26→ *
+    27→ *  Image pipeline (fully Meta-internal, no public hosting needed):
+    28→ *    Instagram requires a public image_url. We upload the photo to the FB page
+    29→ *    as an UNPUBLISHED photo (binary upload, invisible), take its public CDN
+    30→ *    URL, feed that to the IG container, publish on IG, then delete the hidden
+    31→ *    photo. Facebook itself is posted via direct binary upload.
+    32→ *
+    33→ *  State lives in data/state.json and is committed back to the repo by the
+    34→ *  workflow (which slots are done per day + rotation counters + event log).
+    35→ *
+    36→ *  Flags:  --dry-run   pick content, print the plan, publish nothing
+    37→ *          --force     post the next scheduled slot right now (manual runs)
+    38→ *  Exit:   0 = ok / nothing to do, 1 = failure (red run in the Actions tab)
+    39→ */
+    40→import { promises as fs } from 'node:fs'
+    41→import path from 'node:path'
+    42→import { fileURLToPath } from 'node:url'
+    43→
+    44→const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
+    45→const CONFIG_FILE = path.join(ROOT, 'data', 'config.json')
+    46→const STATE_FILE = path.join(ROOT, 'data', 'state.json')
+    47→const PHOTOS_DIR = path.join(ROOT, 'data', 'photos')
+    48→const CAPTIONS_FILE = path.join(ROOT, 'data', 'captions.txt')
+    49→
+    50→const GRAPH = 'https://graph.facebook.com/v21.0'
+    51→
+    52→const ARG_DRY = process.argv.includes('--dry-run')
+    53→const ARG_FORCE = process.argv.includes('--force')
+    54→
+    55→const log = (msg) => console.log(msg)
+    56→
+    57→// ── Graph API helpers (mirrors src/lib/meta.ts) ─────────────────────────────
+    58→async function graphGet(pathname, params) {
+    59→  const url = new URL(`${GRAPH}/${pathname}`)
+    60→  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v))
+    61→  const res = await fetch(url, { method: 'GET' })
+    62→  const json = await res.json().catch(() => ({}))
+    63→  if (!res.ok) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
+    64→  return json
+    65→}
+    66→
+    67→async function graphPost(pathname, params) {
+    68→  const body = new URLSearchParams()
+    69→  for (const [k, v] of Object.entries(params)) body.set(k, String(v))
+    70→  const res = await fetch(`${GRAPH}/${pathname}`, { method: 'POST', body })
+    71→  const json = await res.json().catch(() => ({}))
+    72→  if (!res.ok || json.error) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
+    73→  return json
+    74→}
+    75→
+    76→async function graphDelete(pathname, params) {
+    77→  const url = new URL(`${GRAPH}/${pathname}`)
+    78→  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, String(v))
+    79→  const res = await fetch(url, { method: 'DELETE' })
+    80→  const json = await res.json().catch(() => ({}))
+    81→  if (!res.ok || json.error) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
+    82→  return json
+    83→}
+    84→
+    85→/** POST /{page}/photos with a binary file (multipart "source" field) */
+    86→async function fbUploadPhoto(pageId, pageToken, filePath, { caption = '', published = true } = {}) {
+    87→  const buf = await fs.readFile(filePath)
+    88→  const form = new FormData()
+    89→  if (caption) form.append('caption', caption)
+    90→  form.append('published', published ? 'true' : 'false')
+    91→  form.append('access_token', pageToken)
+    92→  form.append('source', new Blob([buf], { type: 'image/jpeg' }), path.basename(filePath))
+    93→  const res = await fetch(`${GRAPH}/${pageId}/photos`, { method: 'POST', body: form })
+    94→  const json = await res.json().catch(() => ({}))
+    95→  if (!res.ok || json.error) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
+    96→  return json
+    97→}
+    98→
+    99→// ── Connect (page-token first, user-token exchange as fallback) ─────────────
+   100→async function connect(cfg) {
+   101→  // 1) permanent page token from config
+   102→  if (cfg.pageAccessToken && cfg.pageId) {
+   103→    try {
+   104→      const me = await graphGet(cfg.pageId, {
+   105→        fields: 'name,instagram_business_account{id,username}',
+   106→        access_token: cfg.pageAccessToken,
+   107→      })
+   108→      const ig = me.instagram_business_account ?? {}
+   109→      log(`[connect] page token (permanent): valid → ${me.name} | IG: @${ig.username ?? 'none'}`)
+   110→      return {
+   111→        via: 'page-token',
+   112→        page: {
+   113→          pageId: cfg.pageId,
+   114→          pageName: String(me.name ?? ''),
+   115→          pageToken: cfg.pageAccessToken,
+   116→          igUserId: String(ig.id ?? cfg.igUserId ?? ''),
+   117→          igUsername: String(ig.username ?? ''),
+   118→        },
+   119→      }
+   120→    } catch (e) {
+   121→      log(`[connect] permanent page token failed (${e.message}) — trying user-token exchange`)
+   122→    }
+   123→  }
+   124→  // 2) rotation path: exchange user token → pages → page token
+   125→  if (!cfg.metaUserToken) throw new Error('No working token: pageAccessToken invalid and metaUserToken missing — regenerate your Meta token and update data/config.json')
+   126→  let token = cfg.metaUserToken
+   127→  if (cfg.appId && cfg.appSecret) {
+   128→    try {
+   129→      const ex = await graphGet('oauth/access_token', {
+   130→        grant_type: 'fb_exchange_token',
+   131→        client_id: cfg.appId,
+   132→        client_secret: cfg.appSecret,
+   133→        fb_exchange_token: token,
+   134→      })
+   135→      if (ex.access_token) token = String(ex.access_token)
+   136→    } catch { /* keep raw token */ }
+   137→  }
+   138→  const pages = await graphGet('me/accounts', {
+   139→    fields: 'id,name,access_token,instagram_business_account{id,username}',
+   140→    access_token: token,
+   141→    limit: '50',
+   142→  })
+   143→  const list = (pages.data ?? []).map((p) => ({
+   144→    id: String(p.id),
+   145→    name: String(p.name),
+   146→    accessToken: String(p.access_token),
+   147→    igUserId: p.instagram_business_account ? String(p.instagram_business_account.id) : '',
+   148→    igUsername: p.instagram_business_account ? String(p.instagram_business_account.username) : '',
+   149→  }))
+   150→  const page =
+   151→    list.find((p) => cfg.pageId && p.id === cfg.pageId) ??
+   152→    list.find((p) => cfg.igUsername && p.igUsername === cfg.igUsername) ??
+   153→    list.find((p) => p.igUserId) ??
+   154→    list[0]
+   155→  if (!page) throw new Error('Token exchange OK but no pages visible to this token')
+   156→  log(`[connect] user-token path → ${page.name} (${page.id}) | IG: @${page.igUsername}`)
+   157→  return { via: 'exchange', page: { ...page, pageToken: page.accessToken } }
+   158→}
+   159→
+   160→// ── Time / slots (mirrors src/lib/settings.ts + scheduler.ts) ───────────────
+   161→function localNow(timeZone) {
+   162→  const parts = new Intl.DateTimeFormat('en-CA', {
+   163→    timeZone,
+   164→    hourCycle: 'h23',
+   165→    year: 'numeric',
+   166→    month: '2-digit',
+   167→    day: '2-digit',
+   168→    hour: '2-digit',
+   169→    minute: '2-digit',
+   170→  }).formatToParts(new Date())
+   171→  const get = (t) => parts.find((p) => p.type === t)?.value ?? '0'
+   172→  const hour = Number(get('hour')) % 24
+   173→  const minute = Number(get('minute'))
+   174→  return {
+   175→    date: `${get('year')}-${get('month')}-${get('day')}`,
+   176→    minutesOfDay: hour * 60 + minute,
+   177→  }
+   178→}
+   179→
+   180→function parseSlots(str) {
+   181→  return String(str || '06:00,12:00,18:00')
+   182→    .split(',')
+   183→    .map((s) => s.trim().match(/^(\d{1,2}):(\d{2})$/))
+   184→    .filter(Boolean)
+   185→    .map((m) => ({
+   186→      minutes: Number(m[1]) * 60 + Number(m[2]),
+   187→      label: `${String(Number(m[1])).padStart(2, '0')}:${m[2]}`,
+   188→    }))
+   189→    .sort((a, b) => a.minutes - b.minutes)
+   190→}
+   191→
+   192→// ── Content: photos + captions (mirrors src/lib/importer.ts parsing) ────────
+   193→async function loadLibrary() {
+   194→  const photos = (await fs.readdir(PHOTOS_DIR))
+   195→    .filter((f) => /\.jpe?g$/i.test(f))
+   196→    .sort()
+   197→  const nonJpg = (await fs.readdir(PHOTOS_DIR)).filter((f) => /\.(png|webp)$/i.test(f))
+   198→  if (nonJpg.length > 0) {
+   199→    log(`[library] note: ${nonJpg.length} non-JPEG file(s) present (${nonJpg.join(', ')}) — the workflow's normalize step converts them to JPEG; IG can only post JPEG`)
+   200→  }
+   201→  const captions = Array.from(
+   202→    new Set(
+   203→      (await fs.readFile(CAPTIONS_FILE, 'utf-8'))
+   204→        .split(/\n\s*---+\s*\n/)
+   205→        .map((t) => t.trim())
+   206→        .filter((t) => t.length >= 2 && t.length <= 2200)
+   207→    )
+   208→  )
+   209→  return { photos, captions }
+   210→}
+   211→
+   212→// ── State (data/state.json, committed back by the workflow) ─────────────────
+   213→const EMPTY_STATE = { version: 1, days: {}, rotation: { photoIndex: 0, captionIndex: 0 }, events: [] }
+   214→async function readState() {
+   215→  try {
+   216→    const s = JSON.parse(await fs.readFile(STATE_FILE, 'utf-8'))
+   217→    return { ...EMPTY_STATE, ...s, rotation: { ...EMPTY_STATE.rotation, ...(s.rotation ?? {}) } }
+   218→  } catch {
+   219→    return JSON.parse(JSON.stringify(EMPTY_STATE))
+   220→  }
+   221→}
+   222→async function writeState(state) {
+   223→  state.events = state.events.slice(-100)
+   224→  await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2) + '\n')
+   225→}
+   226→function recordEvent(state, ev) {
+   227→  state.events.push({ ts: new Date().toISOString(), ...ev })
+   228→}
+   229→
+   230→// ── Duplicate guard (mirrors src/lib/meta.ts minutesSinceLastPost) ──────────
+   231→async function minutesSinceLastPost(page) {
+   232→  const cutoff = Date.now() - 7 * 86400000
+   233→  const future = Date.now() + 60000 // ignore future timestamps (scheduled posts)
+   234→  try {
+   235→    if (page.igUserId) {
+   236→      const json = await graphGet(`${page.igUserId}/media`, { fields: 'timestamp', limit: '3', access_token: page.pageToken })
+   237→      const ts = (json.data ?? []).map((m) => (m.timestamp ? new Date(m.timestamp).getTime() : 0)).filter(Boolean).filter((t) => t < future)
+   238→      const latest = Math.max(...ts, 0)
+   239→      if (latest > cutoff) return Math.max(0, Math.round((Date.now() - latest) / 60000))
+   240→      return null
+   241→    }
+   242→  } catch { /* fall through */ }
+   243→  try {
+   244→    const json = await graphGet(`${page.pageId}/posts`, { fields: 'created_time', limit: '3', access_token: page.pageToken })
+   245→    const ts = (json.data ?? []).map((p) => (p.created_time ? new Date(p.created_time).getTime() : 0)).filter(Boolean).filter((t) => t < future)
+   246→    const latest = Math.max(...ts, 0)
+   247→    if (latest > cutoff) return Math.max(0, Math.round((Date.now() - latest) / 60000))
+   248→  } catch { /* unknown — do not block */ }
+   249→  return null
+   250→}
+   251→
+   252→// ── Publish (IG via Meta CDN, FB via binary upload) ─────────────────────────
+   253→async function publishInstagram(page, photoPath, caption) {
+   254→  const steps = []
+   255→  let helperPhotoId = ''
+   256→  try {
+   257→    // 1) hidden FB photo → public CDN URL
+   258→    const up = await fbUploadPhoto(page.pageId, page.pageToken, photoPath, { published: false })
+   259→    helperPhotoId = String(up.id ?? '')
+   260→    steps.push(`helper photo ${helperPhotoId} uploaded (unpublished)`)
+   261→    const info = await graphGet(helperPhotoId, { fields: 'images', access_token: page.pageToken })
+   262→    const images = (info.images ?? []).slice().sort((a, b) => (b.width ?? 0) - (a.width ?? 0))
+   263→    const cdnUrl = String(images[0]?.source ?? '')
+   264→    if (!cdnUrl) throw new Error('no CDN URL on the helper photo')
+   265→    steps.push(`CDN url ok (${images[0].width}px)`)
+   266→
+   267→    // 2) IG container → poll → publish (mirrors src/lib/meta.ts)
+   268→    const container = await graphPost(`${page.igUserId}/media`, {
+   269→      image_url: cdnUrl,
+   270→      caption: caption.slice(0, 2200),
+   271→      access_token: page.pageToken,
+   272→    })
+   273→    const creationId = String(container.id ?? '')
+   274→    if (!creationId) throw new Error('no container id returned')
+   275→    steps.push(`container ${creationId}`)
+   276→    let ready = false
+   277→    for (let i = 0; i < 10; i++) {
+   278→      const status = await graphGet(creationId, { fields: 'status_code', access_token: page.pageToken })
+   279→      const code = String(status.status_code ?? '')
+   280→      if (code === 'FINISHED') { ready = true; break }
+   281→      if (code === 'ERROR') throw new Error('Instagram could not process the image')
+   282→      await new Promise((r) => setTimeout(r, 2000))
+   283→    }
+   284→    if (!ready) throw new Error('image processing timed out (try a smaller JPEG)')
+   285→    steps.push('container FINISHED')
+   286→
+   287→    const published = await graphPost(`${page.igUserId}/media_publish`, { creation_id: creationId, access_token: page.pageToken })
+   288→    const postId = String(published.id ?? '')
+   289→    let permalink = ''
+   290→    try {
+   291→      const info2 = await graphGet(postId, { fields: 'permalink', access_token: page.pageToken })
+   292→      permalink = String(info2.permalink ?? '')
+   293→    } catch { /* best-effort */ }
+   294→    steps.push(`published ${postId}`)
+   295→    return { ok: true, postId, permalink, error: '', steps }
+   296→  } catch (e) {
+   297→    return { ok: false, postId: '', permalink: '', error: e.message, steps }
+   298→  } finally {
+   299→    if (helperPhotoId) {
+   300→      try { await graphDelete(helperPhotoId, { access_token: page.pageToken }) } catch { /* best-effort cleanup */ }
+   301→    }
+   302→  }
+   303→}
+   304→
+   305→async function publishFacebook(page, photoPath, caption) {
+   306→  try {
+   307→    const json = await fbUploadPhoto(page.pageId, page.pageToken, photoPath, {
+   308→      caption: caption.slice(0, 5000),
+   309→      published: true,
+   310→    })
+   311→    const postId = String(json.post_id ?? json.id ?? '')
+   312→    let permalink = ''
+   313→    try {
+   314→      const info = await graphGet(postId, { fields: 'permalink_url', access_token: page.pageToken })
+   315→      permalink = String(info.permalink_url ?? '')
+   316→    } catch { /* best-effort */ }
+   317→    return { ok: true, postId, permalink, error: '' }
+   318→  } catch (e) {
+   319→    return { ok: false, postId: '', permalink: '', error: e.message }
+   320→  }
+   321→}
+   322→
+   323→// ── Meta-scheduled publishing (the reliability core) ────────────────────────
+   324→// IG: container with publish_time + media_publish → post sits in SCHEDULED
+   325→//     state on Meta's servers until the exact slot time.
+   326→// FB: photo upload with published=false + scheduled_publish_time.
+   327→// Meta publishes both punctually by itself — GitHub's schedule drops become
+   328→// irrelevant: any single landed run keeps the next `scheduleDays` days full.
+   329→
+   330→async function scheduleInstagramPost(page, photoPath, caption, publishTimeISO) {
+   331→  const steps = []
+   332→  let helperPhotoId = ''
+   333→  try {
+   334→    const up = await fbUploadPhoto(page.pageId, page.pageToken, photoPath, { published: false })
+   335→    helperPhotoId = String(up.id ?? '')
+   336→    const info = await graphGet(helperPhotoId, { fields: 'images', access_token: page.pageToken })
+   337→    const images = (info.images ?? []).slice().sort((a, b) => (b.width ?? 0) - (a.width ?? 0))
+   338→    const cdnUrl = String(images[0]?.source ?? '')
+   339→    if (!cdnUrl) throw new Error('no CDN URL on the helper photo')
+   340→    const container = await graphPost(`${page.igUserId}/media`, {
+   341→      image_url: cdnUrl,
+   342→      caption: caption.slice(0, 2200),
+   343→      publish_time: publishTimeISO,
+   344→      access_token: page.pageToken,
+   345→    })
+   346→    const creationId = String(container.id ?? '')
+   347→    if (!creationId) throw new Error('no container id returned')
+   348→    let ready = false
+   349→    for (let i = 0; i < 10; i++) {
+   350→      const st = await graphGet(creationId, { fields: 'status_code', access_token: page.pageToken })
+   351→      const code = String(st.status_code ?? '')
+   352→      if (code === 'FINISHED') { ready = true; break }
+   353→      if (code === 'ERROR') throw new Error('Instagram could not process the image')
+   354→      await new Promise((r) => setTimeout(r, 2000))
+   355→    }
+   356→    if (!ready) throw new Error('image processing timed out (try a smaller JPEG)')
+   357→    const scheduled = await graphPost(`${page.igUserId}/media_publish`, { creation_id: creationId, access_token: page.pageToken })
+   358→    const postId = String(scheduled.id ?? '')
+   359→    if (!postId) throw new Error('media_publish returned no id')
+   360→    steps.push(`IG media ${postId} scheduled for ${publishTimeISO}`)
+   361→    return { ok: true, postId, error: '', steps }
+   362→  } catch (e) {
+   363→    return { ok: false, postId: '', error: e.message, steps }
+   364→  } finally {
+   365→    if (helperPhotoId) {
+   366→      try { await graphDelete(helperPhotoId, { access_token: page.pageToken }) } catch { /* best-effort cleanup */ }
+   367→    }
+   368→  }
+   369→}
+   370→
+   371→async function scheduleFacebookPost(page, photoPath, caption, publishTimeUnixSec) {
+   372→  try {
+   373→    const buf = await fs.readFile(photoPath)
+   374→    const form = new FormData()
+   375→    if (caption) form.append('caption', caption.slice(0, 5000))
+   376→    form.append('published', 'false')
+   377→    form.append('scheduled_publish_time', String(publishTimeUnixSec))
+   378→    form.append('access_token', page.pageToken)
+   379→    form.append('source', new Blob([buf], { type: 'image/jpeg' }), path.basename(photoPath))
+   380→    const res = await fetch(`${GRAPH}/${page.pageId}/photos`, { method: 'POST', body: form })
+   381→    const json = await res.json().catch(() => ({}))
+   382→    if (!res.ok || json.error) throw new Error(json?.error?.message ?? `HTTP ${res.status}`)
+   383→    return { ok: true, postId: String(json.id ?? ''), error: '' }
+   384→  } catch (e) {
+   385→    return { ok: false, postId: '', error: e.message }
+   386→  }
+   387→}
+   388→
+   389→/** Confirm Meta-scheduled slots that have gone live → record permalinks. */
+   390→async function reconcileScheduled(page, state) {
+   391→  let changed = false
+   392→  for (const [dk, day] of Object.entries(state.days ?? {})) {
+   393→    for (const [label, rec] of Object.entries(day ?? {})) {
+   394→      if (rec?.status !== 'scheduled' || !rec.publishTime) continue
+   395→      const due = new Date(rec.publishTime).getTime()
+   396→      if (Date.now() < due + 5 * 60000) continue // not due yet
+   397→      let igOk = false, fbOk = false, igPerma = '', fbPerma = ''
+   398→      if (rec.ig?.id) {
+   399→        try {
+   400→          const m = await graphGet(String(rec.ig.id), { fields: 'permalink,timestamp', access_token: page.pageToken })
+   401→          const live = m.permalink && m.timestamp && new Date(m.timestamp).getTime() <= Date.now() + 60000
+   402→          if (live) { igOk = true; igPerma = String(m.permalink) }
+   403→        } catch { /* not confirmable yet */ }
+   404→      }
+   405→      if (rec.fb?.id) {
+   406→        // photo id while unpublished; pageId_photoId once it becomes a feed post
+   407→        for (const cid of [String(rec.fb.id), `${page.pageId}_${String(rec.fb.id)}`]) {
+   408→          try {
+   409→            const p = await graphGet(cid, { fields: 'permalink_url,created_time', access_token: page.pageToken })
+   410→            const live = p.permalink_url && p.created_time && new Date(p.created_time).getTime() <= Date.now() + 60000
+   411→            if (live) { fbOk = true; fbPerma = String(p.permalink_url); rec.fb.id = cid; break }
+   412→          } catch { /* not confirmable via this id yet */ }
+   413→        }
+   414→      }
+   415→      if (igOk || fbOk) {
+   416→        rec.status = igOk && fbOk ? 'published' : 'partial'
+   417→        rec.at = rec.publishTime
+   418→        if (rec.ig) rec.ig = { id: rec.ig.id, permalink: igPerma }
+   419→        if (rec.fb) rec.fb = { id: rec.fb.id, permalink: fbPerma }
+   420→        recordEvent(state, { level: igOk && fbOk ? 'success' : 'error', date: dk, slot: label, message: `${label} published by Meta on schedule — IG ${igOk ? `✓ ${igPerma}` : '✗ unconfirmed'} | FB ${fbOk ? `✓ ${fbPerma}` : '✗ unconfirmed'}` })
+   421→        changed = true
+   422→      }
+   423→    }
+   424→  }
+   425→  return changed
+   426→}
+   427→
+   428→/** Pause switch: delete pending scheduled posts from Meta so "autoPost": false really stops everything. */
+   429→async function cancelPendingScheduled(page, state) {
+   430→  let cancelled = 0
+   431→  for (const [dk, day] of Object.entries(state.days ?? {})) {
+   432→    for (const [label, rec] of Object.entries(day ?? {})) {
+   433→      if (rec?.status !== 'scheduled' || !rec.publishTime) continue
+   434→      if (new Date(rec.publishTime).getTime() < Date.now()) continue
+   435→      const removed = []
+   436→      if (rec.ig?.id) { try { await graphDelete(String(rec.ig.id), { access_token: page.pageToken }); removed.push('IG') } catch { /* already gone */ } }
+   437→      if (rec.fb?.id) { try { await graphDelete(String(rec.fb.id), { access_token: page.pageToken }); removed.push('FB') } catch { /* already gone */ } }
+   438→      if (removed.length > 0) {
+   439→        rec.status = 'cancelled'
+   440→        rec.at = new Date().toISOString()
+   441→        recordEvent(state, { level: 'info', date: dk, slot: label, message: `${label} cancelled (autoPost=false) — removed from Meta: ${removed.join(' + ')}` })
+   442→        cancelled++
+   443→      }
+   444→    }
+   445→  }
+   446→  return cancelled
+   447→}
+   448→
+   449→/** Wall-clock (dateKey + minutesOfDay) in `timeZone` → UTC epoch ms. 2-pass Intl convergence. */
+   450→function zonedToUtc(dateKey, minutesOfDay, timeZone) {
+   451→  const [y, mo, d] = dateKey.split('-').map(Number)
+   452→  const wallMs = Date.UTC(y, mo - 1, d, Math.floor(minutesOfDay / 60), minutesOfDay % 60)
+   453→  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+   454→  let ts = wallMs
+   455→  for (let i = 0; i < 3; i++) {
+   456→    const parts = fmt.formatToParts(new Date(ts))
+   457→    const get = (t) => Number(parts.find((p) => p.type === t)?.value ?? 0)
+   458→    const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'))
+   459→    if (asUTC === wallMs) break
+   460→    ts += wallMs - asUTC
+   461→  }
+   462→  return ts
+   463→}
+   464→
+   465→/** Upcoming slots across `scheduleDays` days that have no state entry yet. */
+   466→function buildHorizon(state, slots, now, tz, scheduleDays) {
+   467→  const plan = []
+   468→  const minUnix = Date.now() + 20 * 60000 // Meta needs ≥ 10 min lead; use 20 for safety
+   469→  for (let d = 0; d < scheduleDays; d++) {
+   470→    const dk = d === 0 ? now.date : addDaysKey(now.date, d)
+   471→    for (const s of slots) {
+   472→      if (state.days[dk]?.[s.label]) continue
+   473→      const slotUnix = zonedToUtc(dk, s.minutes, tz)
+   474→      if (slotUnix < minUnix) continue
+   475→      plan.push({ dk, slot: s, slotUnix })
+   476→    }
+   477→  }
+   478→  return plan
+   479→}
+   480→
+   481→// ─────────────────────────────────────────────────────────────────────────────
+   482→async function main() {
+   483→  const cfg = JSON.parse(await fs.readFile(CONFIG_FILE, 'utf-8'))
+   484→  const { page, via } = await connect(cfg)
+   485→
+   486→  // If we had to mint a page token through the user-token path, persist it
+   487→  // back into data/config.json — future runs (and page switches) then work
+   488→  // from the permanent token without needing a fresh user token.
+   489→  if (via === 'exchange') {
+   490→    let changed = false
+   491→    if (cfg.pageAccessToken !== page.pageToken) { cfg.pageAccessToken = page.pageToken; changed = true }
+   492→    if (cfg.pageName !== page.name) { cfg.pageName = page.name; changed = true }
+   493→    if (cfg.igUserId !== page.igUserId) { cfg.igUserId = page.igUserId; changed = true }
+   494→    if (cfg.igUsername !== page.igUsername) { cfg.igUsername = page.igUsername; changed = true }
+   495→    if (changed) {
+   496→      await fs.writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2) + '\n')
+   497→      log('[connect] minted page token saved → data/config.json (committed with the state)')
+   498→    }
+   499→  }
+   500→
+   501→  const state = await readState()
+   502→  const tz = cfg.timezone || 'Africa/Dar_es_Salaam'
+   503→  const slots = parseSlots(cfg.slots)
+   504→  const grace = Number(cfg.graceMinutes ?? 60)
+   505→  const scheduleDays = Math.max(1, Math.min(7, Number(cfg.scheduleDays ?? 3)))
+   506→  const now = localNow(tz)
+   507→  const nowClock = `${String(Math.floor(now.minutesOfDay / 60)).padStart(2, '0')}:${String(now.minutesOfDay % 60).padStart(2, '0')}`
+   508→
+   509→  log(`[clock] ${now.date} ${nowClock} (${tz}) | slots: ${slots.map((s) => s.label).join(', ')} | grace ${grace}m | horizon ${scheduleDays}d | mode: ${ARG_DRY ? 'DRY-RUN' : ARG_FORCE ? 'FORCED' : 'auto'}`)
+   510→
+   511→  // Emergency pause switch — set "autoPost": false in data/config.json.
+   512→  // Pending Meta-scheduled posts are deleted so the pause really stops everything.
+   513→  if (cfg.autoPost === false && !ARG_FORCE && !ARG_DRY) {
+   514→    log('[paused] autoPost is false in data/config.json — automatic posting paused (manual force still works)')
+   515→    const n = await cancelPendingScheduled(page, state)
+   516→    if (n > 0) { await writeState(state); log(`[paused] cancelled ${n} pending Meta-scheduled post(s)`) }
+   517→    return
+   518→  }
+   519→
+   520→  const { photos, captions } = await loadLibrary()
+   521→  if (photos.length === 0 || captions.length === 0) {
+   522→    const why = photos.length === 0 ? 'no .jpg files in data/photos/' : 'no captions in data/captions.txt'
+   523→    recordEvent(state, { level: 'error', date: now.date, slot: '', message: `Nothing to post: ${why}` })
+   524→    await writeState(state)
+   525→    throw new Error(`Nothing to post: ${why}`)
+   526→  }
+   527→  log(`[library] ${photos.length} photo(s), ${captions.length} caption(s)`)
+   528→
+   529→  // ---- reconcile: confirm Meta-scheduled slots that have gone live ----
+   530→  if (!ARG_DRY) {
+   531→    const changed = await reconcileScheduled(page, state)
+   532→    if (changed) { await writeState(state); log('[reconcile] recorded live permalinks for scheduled slots') }
+   533→  }
+   534→
+   535→  // ---- slot decision (mirrors src/lib/scheduler.ts) ----
+   536→  if (slots.length === 0) throw new Error('No valid slots in data/config.json ("slots" field)')
+   537→  let target = null
+   538→  let missed = []
+   539→  const doneToday = state.days[now.date] ?? {}
+   540→
+   541→  if (ARG_FORCE || ARG_DRY) {
+   542→    // manual runs: first rescue the slot that is due RIGHT NOW — the most
+   543→    // recent past slot with no successful post (includes slots already
+   544→    // marked "missed", excludes slots Meta already has scheduled).
+   545→    for (const s of [...slots].reverse()) {
+   546→      if (s.minutes > now.minutesOfDay) continue
+   547→      const done = state.days[now.date]?.[s.label]
+   548→      if (done && ['published', 'partial', 'scheduled'].includes(done.status)) continue
+   549→      target = { ...s, date: now.date }
+   550→      break
+   551→    }
+   552→    // otherwise the next future slot (today, else tomorrow)
+   553→    if (!target) {
+   554→      for (const dayOffset of [0, 1]) {
+   555→        const dk = dayOffset === 0 ? now.date : addDaysKey(now.date, 1)
+   556→        for (const s of slots) {
+   557→          if (dayOffset === 0 && s.minutes <= now.minutesOfDay) continue
+   558→          const done = state.days[dk]?.[s.label]
+   559→          if (done && ['published', 'partial', 'scheduled'].includes(done.status)) continue
+   560→          target = { ...s, date: dk }
+   561→          break
+   562→        }
+   563→        if (target) break
+   564→      }
+   565→    }
+   566→  } else {
+   567→    for (const s of slots) {
+   568→      if (doneToday[s.label]) continue
+   569→      const since = now.minutesOfDay - s.minutes
+   570→      if (since >= 0 && since <= grace) target = s
+   571→      else if (since > grace) missed.push(s)
+   572→    }
+   573→    // mark permanently-missed slots once (so they are not retried)
+   574→    for (const s of missed) {
+   575→      doneToday[s.label] = { status: 'missed', at: new Date().toISOString() }
+   576→      recordEvent(state, { level: 'info', date: now.date, slot: s.label, message: `Slot ${s.label} missed (outside ${grace}-min catch-up window)` })
+   577→    }
+   578→    if (missed.length > 0) state.days[now.date] = doneToday
+   579→  }
+   580→
+   581→  if (!target && missed.length > 0) await writeState(state)
+   582→
+   583→  // ---- horizon: upcoming slots to pre-schedule with Meta's own scheduler ----
+   584→  const horizon = scheduleDays >= 2 ? buildHorizon(state, slots, now, tz, scheduleDays) : []
+   585→
+   586→  if (ARG_DRY) {
+   587→    let pi = state.rotation.photoIndex
+   588→    if (target) {
+   589→      const dPhoto = photos[pi % photos.length]
+   590→      log(`[pick] slot ${target.label} on ${target.date ?? now.date} → photo: ${dPhoto} (rotation index ${pi % photos.length} of ${photos.length})`)
+   591→      pi++
+   592→      log('[dry-run] would publish now:')
+   593→      log(`  Instagram (${page.igUsername || page.igUserId}): hidden FB photo → CDN url → container → media_publish`)
+   594→      log(`  Facebook (${page.pageName}): binary upload with caption`)
+   595→    }
+   596→    if (horizon.length > 0) {
+   597→      log(`[dry-run] would pre-schedule ${horizon.length} slot(s) via Meta (published exactly on time):`)
+   598→      for (const h of horizon) {
+   599→        const ph = photos[pi % photos.length]
+   600→        pi++
+   601→        log(`  ${h.dk} ${h.slot.label} → "${ph}" → Meta publishes at ${new Date(h.slotUnix).toISOString()}`)
+   602→      }
+   603→    }
+   604→    log('[dry-run] nothing published or scheduled, state unchanged')
+   605→    return
+   606→  }
+   607→
+   608→  if (target) {
+   609→    const dateKey = target.date ?? now.date
+   610→    const slotLabel = `${target.label} Auto`
+   611→
+   612→    // ---- pick content (rotation, mirrors poster's least-recently-used) ----
+   613→    const photoFile = photos[state.rotation.photoIndex % photos.length]
+   614→    const captionText = captions[state.rotation.captionIndex % captions.length]
+   615→    const photoPath = path.join(PHOTOS_DIR, photoFile)
+   616→
+   617→    const plan = [
+   618→      `[pick] slot ${slotLabel} on ${dateKey}`,
+   619→      `[pick] photo: ${photoFile} (rotation index ${state.rotation.photoIndex % photos.length} of ${photos.length})`,
+   620→      `[pick] caption: "${captionText.slice(0, 70).replace(/\n/g, ' ')}…" (${captionText.length} chars)`,
+   621→    ]
+   622→    plan.forEach(log)
+   623→
+   624→    // ---- duplicate guard (cross-runtime safety net) ----
+   625→    const guardMinutes = ARG_FORCE ? 3 : 30
+   626→    const lastAgo = await minutesSinceLastPost(page)
+   627→    if (lastAgo !== null && lastAgo < guardMinutes) {
+   628→      log(`[guard] a post went out ${lastAgo} min ago (< ${guardMinutes} min guard) — skipping to avoid double-posting`)
+   629→      const gday = state.days[dateKey] ?? {}
+   630→      gday[target.label] = { status: 'guarded', at: new Date().toISOString() }
+   631→      state.days[dateKey] = gday
+   632→      recordEvent(state, { level: 'info', date: dateKey, slot: target.label, message: `Skipped by duplicate guard — last post ${lastAgo} min ago` })
+   633→      await writeState(state)
+   634→      target = null
+   635→    } else {
+   636→      // ---- publish ----
+   637→      log(`[post] publishing slot ${slotLabel} …`)
+   638→      const igResult = page.igUserId
+   639→        ? await publishInstagram(page, photoPath, captionText)
+   640→        : { ok: true, postId: '', permalink: '', error: '', steps: ['IG not configured'] }
+   641→      igResult.steps?.forEach((s) => log(`  IG: ${s}`))
+   642→      const fbResult = await publishFacebook(page, photoPath, captionText)
+   643→
+   644→      const igOk = igResult.ok
+   645→      const fbOk = fbResult.ok
+   646→      const status = igOk && fbOk ? 'published' : igOk || fbOk ? 'partial' : 'failed'
+   647→      log(`[post] IG: ${igOk ? `✓ ${igResult.permalink || igResult.postId}` : `✗ ${igResult.error}`}`)
+   648→      log(`[post] FB: ${fbOk ? `✓ ${fbResult.permalink || fbResult.postId}` : `✗ ${fbResult.error}`}`)
+   649→
+   650→      // ---- state update ----
+   651→      const day = state.days[dateKey] ?? {}
+   652→      day[target.label] = {
+   653→        status,
+   654→        at: new Date().toISOString(),
+   655→        photo: photoFile,
+   656→        ig: igOk ? { id: igResult.postId, permalink: igResult.permalink } : { error: igResult.error },
+   657→        fb: fbOk ? { id: fbResult.postId, permalink: fbResult.permalink } : { error: fbResult.error },
+   658→      }
+   659→      state.days[dateKey] = day
+   660→      if (status !== 'failed') {
+   661→        state.rotation.photoIndex = (state.rotation.photoIndex + 1) % photos.length
+   662→        state.rotation.captionIndex = (state.rotation.captionIndex + 1) % captions.length
+   663→      }
+   664→      recordEvent(state, {
+   665→        level: status === 'published' ? 'success' : 'error',
+   666→        date: dateKey,
+   667→        slot: target.label,
+   668→        message: `${slotLabel}: ${status} — "${photoFile}" | IG ${igOk ? '✓' : `✗ ${igResult.error}`} | FB ${fbOk ? '✓' : `✗ ${fbResult.error}`}`,
+   669→      })
+   670→      await writeState(state)
+   671→      log(`[state] saved — ${dateKey} ${target.label} = ${status}`)
+   672→
+   673→      if (status !== 'published') {
+   674→        throw new Error(`Slot ${slotLabel} ended as "${status}" — IG: ${igResult.error || 'ok'} | FB: ${fbResult.error || 'ok'}`)
+   675→      }
+   676→    }
+   677→  } else {
+   678→    log(`[done] no slot due right now — today: ${Object.keys(doneToday).map((k) => `${k}=${doneToday[k].status}`).join(', ') || 'nothing posted yet'}`)
+   679→  }
+   680→
+   681→  // ---- pre-schedule the horizon: Meta publishes these exactly on time ----
+   682→  if (horizon.length > 0) log(`[schedule] pre-scheduling ${horizon.length} upcoming slot(s) with Meta …`)
+   683→  let scheduledCount = 0
+   684→  for (const h of horizon) {
+   685→    const hPhoto = photos[state.rotation.photoIndex % photos.length]
+   686→    const hCaption = captions[state.rotation.captionIndex % captions.length]
+   687→    const hPhotoPath = path.join(PHOTOS_DIR, hPhoto)
+   688→    const hISO = new Date(h.slotUnix).toISOString()
+   689→    log(`[schedule] ${h.dk} ${h.slot.label} → "${hPhoto}" → Meta publishes at ${hISO}`)
+   690→    const igS = page.igUserId
+   691→      ? await scheduleInstagramPost(page, hPhotoPath, hCaption, hISO)
+   692→      : { ok: true, postId: '', error: '', steps: ['IG not configured'] }
+   693→    igS.steps?.forEach((s) => log(`  IG: ${s}`))
+   694→    const fbS = await scheduleFacebookPost(page, hPhotoPath, hCaption, Math.floor(h.slotUnix / 1000))
+   695→    if (igS.ok || fbS.ok) {
+   696→      const day = state.days[h.dk] ?? {}
+   697→      day[h.slot.label] = {
+   698→        status: 'scheduled',
+   699→        publishTime: hISO,
+   700→        at: new Date().toISOString(),
+   701→        photo: hPhoto,
+   702→        ig: igS.ok ? { id: igS.postId } : { error: igS.error },
+   703→        fb: fbS.ok ? { id: fbS.postId } : { error: fbS.error },
+   704→      }
+   705→      state.days[h.dk] = day
+   706→      state.rotation.photoIndex = (state.rotation.photoIndex + 1) % photos.length
+   707→      state.rotation.captionIndex = (state.rotation.captionIndex + 1) % captions.length
+   708→      recordEvent(state, { level: 'info', date: h.dk, slot: h.slot.label, message: `${h.slot.label} pre-scheduled via Meta (publishes ${hISO}) — "${hPhoto}" | IG ${igS.ok ? '✓' : `✗ ${igS.error}`} | FB ${fbS.ok ? '✓' : `✗ ${fbS.error}`}` })
+   709→      if (!igS.ok || !fbS.ok) log(`  partial: IG ${igS.ok ? '✓' : `✗ ${igS.error}`} | FB ${fbS.ok ? '✓' : `✗ ${fbS.error}`}`)
+   710→      scheduledCount++
+   711→    } else {
+   712→      recordEvent(state, { level: 'error', date: h.dk, slot: h.slot.label, message: `${h.slot.label} scheduling FAILED — IG: ${igS.error} | FB: ${fbS.error} (next run retries)` })
+   713→      log(`  ✗ scheduling failed: IG ${igS.error} | FB ${fbS.error} — next run retries`)
+   714→    }
+   715→  }
+   716→  if (scheduledCount > 0) {
+   717→    await writeState(state)
+   718→    log(`[state] saved — ${scheduledCount} upcoming slot(s) pre-scheduled with Meta`)
+   719→  }
+   720→}
+   721→
+   722→function addDaysKey(dateKey, days) {
+   723→  const d = new Date(`${dateKey}T00:00:00Z`)
+   724→  d.setUTCDate(d.getUTCDate() + days)
+   725→  return d.toISOString().slice(0, 10)
+   726→}
+   727→
+   728→main()
+   729→  .catch((e) => { console.error(`[agent] FAILED: ${e.message}`); process.exit(1) })
+   730→

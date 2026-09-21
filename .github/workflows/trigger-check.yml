@@ -1,0 +1,40 @@
+name: Trigger check
+
+# Minimal diagnostic: fires on ANY push (no path filter — immune to filter
+# edge cases). Proves two things by committing one line to
+# data/runner-verified.log with the built-in GITHUB_TOKEN:
+#   1. pushes actually create workflow runs on this repo
+#   2. the runner can push back to main (same mechanism the scheduled
+#      workflow relies on for data/state.json)
+# Runtime ~40 seconds. Retired once its purpose is served.
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: trigger-check
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Commit ping line
+        run: |
+          git config user.name "social-agent-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          echo "$(date -u '+%Y-%m-%d %H:%M:%S UTC') trigger-check OK — push-trigger works, GITHUB_TOKEN push works (fired by commit $(git rev-parse --short HEAD))" >> data/runner-verified.log
+          git add data/runner-verified.log
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+          else
+            git commit -m "agent: trigger check OK"
+            git push || (git pull --rebase origin main && git push)
+          fi
