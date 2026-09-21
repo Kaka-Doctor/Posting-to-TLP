@@ -3,39 +3,41 @@ name: Social Media Agent
 # ─────────────────────────────────────────────────────────────────────────────
 #  The agent runs ON GitHub — no web host needed (no Vercel / Netlify / server).
 #
-#  GitHub's cron fires this workflow every 10 minutes at :07/:17/:27/:37/:47/:57
-#  past the hour, between 02:07 and 19:57 UTC (05:07–22:57 EAT). The agent
-#  script itself decides whether one of the posting slots from data/config.json
-#  (06:00 / 12:00 / 18:00 EAT by default) is due, using a 4-hour catch-up
-#  window ("graceMinutes": 240) — so a slot is still posted even if the
-#  runner fires hours late.
+#  GitHub's cron fires this workflow every 30 minutes around the clock at
+#  :13/:43 — but the timing barely matters. Every run that lands PRE-SCHEDULES
+#  the next "scheduleDays" days (default 3) of slots with META'S OWN
+#  scheduled publishing — Meta's servers then publish each post exactly at
+#  its slot time (06:00 / 12:00 / 18:00 EAT by default), no matter when or
+#  whether GitHub fires again.
 #
-#  WHY FIRE EVERY 10 MINUTES? GitHub silently DROPS scheduled fires under
-#  load — observed live 2026-09-20: only 3 of ~30 fires ever started runs;
-#  the two covering the 18:00 slot were both dropped and the post was missed
-#  (the 60-min window had closed by the time a later fire landed). Redundant
-#  fires + the 4-hour catch-up window make every slot robust: ANY single run
-#  within 4 hours of the slot publishes it. Dropped fires cost nothing —
-#  only runs that actually start bill minutes.
+#  WHY THIS DESIGN? GitHub silently DROPS most scheduled runs on young
+#  accounts — observed live: 3 of ~30 fires landed on 2026-09-20, and just
+#  1 of ~70 on 2026-09-21, regardless of cron density. Relying on GitHub
+#  firing at slot time does not work. With Meta-side pre-scheduling, ONE
+#  landed run every 2 days keeps the full horizon booked. Landed runs also
+#  record permalinks after posts go live, and late direct posting (4-hour
+#  catch-up, "graceMinutes") remains the fallback for unscheduled slots.
 #
-#  The minutes are deliberately OFF-PEAK (x7, never :00/:30): GitHub drops
-#  scheduled runs at peak minutes when Actions load is high.
+#  The minutes are deliberately OFF-PEAK (:13/:43, never :00/:30): GitHub
+#  drops scheduled runs at peak minutes when Actions load is high.
 #
 #  ⟶ To CHANGE posting times: edit "slots" (and "timezone") in data/config.json
 #    only — this file never needs to change.
 # ⟶ To POST RIGHT NOW (or rescue a MISSED slot the same day): Actions tab →
 #    "Social Media Agent" → "Run workflow" → tick "force".
 # ⟶ To TEST without publishing: same, but tick "dryRun".
+# ⟶ To PAUSE: set "autoPost": false in data/config.json — the next landed
+#    run also deletes any pending Meta-scheduled posts.
 #
-#  Free-tier notes (private repo): only runs that START bill minutes (~15–30
-#  landed runs/day ≈ 600–1200 of the 2000 monthly included minutes). State
+#  Free-tier notes (private repo): only runs that START bill minutes (~2-5
+#  landed runs/day ≈ 100-300 of the 2000 monthly included minutes). State
 #  commits after every posting keep the repo active, so scheduled workflows
 #  never get auto-disabled.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
   schedule:
-    - cron: "7,17,27,37,47,57 2-19 * * *"
+    - cron: "13,43 * * * *"
   workflow_dispatch:
     inputs:
       dryRun:

@@ -10,5 +10,6 @@
   "timezone": "Africa/Dar_es_Salaam",
   "slots": "06:00,12:00,18:00",
   "pageAccessToken": "EAAT10ngyYUsBSryag7Q6P1F4U4BnNUFcXTx9Hn08JZCK3jKbn4yjdXILWkbjl0rqTCcfZBd50Mr34V7A7uJjOJPCgaE5SDThlAUcS1bz61xdZAvpDAGIb4O0z8QgVwk4o3ROXZA6pHRKhr27GKRAwokt9ZAeQrZAbttp2ZBVGaduLrHekppQ0AZAc3e2ZCSbZBRCbzsCZB4wgnsKJgKnERWfKEp",
-  "graceMinutes": 240
+  "graceMinutes": 240,
+  "scheduleDays": 3
 }

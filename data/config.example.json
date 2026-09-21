@@ -1,5 +1,5 @@
 {
-  "_readme": "Copy this file to data/config.json and fill in your values. Everything you might switch later lives here: tokens, the target page, timezone and posting times. Switching pages = set pageId (or igUsername) + a fresh metaUserToken, push, done. pageAccessToken is maintained by the agent itself (permanent page token). Set autoPost to false to pause automatic posting.",
+  "_readme": "Copy this file to data/config.json and fill in your values. Everything you might switch later lives here: tokens, the target page, timezone and posting times. Switching pages = set pageId (or igUsername) + a fresh metaUserToken, push, done. pageAccessToken is maintained by the agent itself (permanent page token). Set autoPost to false to pause automatic posting. graceMinutes: how long past a slot a late run may still post it directly. scheduleDays: how many days ahead Meta pre-schedules posts (2-7 recommended; 1 disables pre-scheduling).",
   "metaUserToken": "YOUR_META_USER_ACCESS_TOKEN (Graph API Explorer, long-lived)",
   "appId": "YOUR_APP_ID",
   "appSecret": "YOUR_APP_SECRET",
@@ -10,5 +10,7 @@
   "igUsername": "Instagram username (optional — used to find the page if pageId is unknown)",
   "timezone": "Africa/Dar_es_Salaam",
   "slots": "06:00,12:00,18:00",
+  "graceMinutes": 240,
+  "scheduleDays": 3,
   "autoPost": true
 }

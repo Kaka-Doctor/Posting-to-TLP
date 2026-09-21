@@ -37,8 +37,9 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 **No web host at all.** GitHub's own servers run the agent for you, for free:
 
-- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 10 minutes** (05:07–22:57 EAT window — minutes are off-peak `x7`, because GitHub drops scheduled runs at peak `:00/:30` minutes; the density + the 4-hour catch-up window absorb GitHub's schedule drops)
-- Each run checks out your repo on a GitHub runner and executes `node scripts/gh-agent.mjs`, which decides — using the **same slot logic as the app** — whether one of the slots from `data/config.json` (06:00 / 12:00 / 18:00 EAT) is due, with the 4-hour catch-up window (`graceMinutes` in `data/config.json`)
+- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes, around the clock** — but the timing barely matters (see the next bullet)
+- **Meta does the punctual publishing.** Each landed run pre-schedules the next `scheduleDays` days (default 3) of posts with **Meta's own scheduled publishing** — the same infrastructure Meta Business Suite uses. Meta's servers then publish each post at exactly its slot time, even if GitHub never fires again that day
+- Why not rely on GitHub firing at slot time? GitHub **silently drops most scheduled runs** on young accounts (observed live: 3 of 30 fires landed one day, 1 of 70 the next). One landed run every ~2 days keeps the whole horizon booked — and landed runs also record permalinks, mark posts published, and late direct posting (4-hour catch-up, `graceMinutes`) remains the fallback
 - It publishes to Instagram + Facebook **directly from the repo files** and commits the state file `data/state.json` (done slots, rotation counters, event log) back to the repo, so every run knows what already happened
 - Run history + logs live in your repo's **Actions tab**; a failed run shows red **and emails you** — nothing fails silently
 
@@ -51,17 +52,17 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 | Change posting times / timezone | Edit `slots` / `timezone` in `data/config.json` and push |
 | Add photos & captions | Drop files in `data/photos/` + `data/captions.txt`, push (unchanged) |
 | Switch pages | Set `pageId` + a fresh `metaUserToken`, push — the agent mints the new page's permanent token and saves it back to the config |
-| Pause everything | Set `"autoPost": false` in `data/config.json` and push |
+| Pause everything | Set `"autoPost": false` in `data/config.json` and push — the next landed run also deletes any pending Meta-scheduled posts |
 | Post right now / rescue a missed slot | Actions tab → **Social Media Agent** → **Run workflow** → tick `force` — it posts the most recent unposted slot, even one already marked missed (same day) |
 | Test without publishing | Same, but tick `dryRun` |
 
-**Free-tier facts** (private repo, GitHub Free): only runs that START bill minutes — realistically ~15–30 landed runs/day ≈ 600–1200 of the 2000 monthly included minutes. The agent's daily state commits keep the repository active, so scheduled workflows are never auto-disabled. GitHub both jitters AND silently drops scheduled fires under load (observed: 3 of 30 landed on 2026-09-20) — that is exactly why the cron fires every 10 minutes redundantly and why the catch-up window is 4 hours.
+**Free-tier facts** (private repo, GitHub Free): only runs that START bill minutes — realistically ~2-5 landed runs/day ≈ 100-300 of the 2000 monthly included minutes. The agent's state commits keep the repository active, so the schedule is never auto-disabled for inactivity. GitHub drops most scheduled fires on young accounts — which is exactly why the agent pre-schedules with Meta instead of trusting GitHub's timing.
 
 > **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
 
 ### ✅ Already activated — nothing to set up
 
-`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately — every 10 minutes inside the 05:07–22:57 EAT window. The **first post goes out at the next slot time** (06:00 / 12:00 / 18:00 EAT). Watch it happen live: repo → **Actions** tab → **Social Media Agent**. Confirmed in production on 2026-09-20: schedule-triggered runs posted the 06:00 and 12:00 EAT slots fully automatically.
+`.github/workflows/social-agent.yml` is committed in this repo, so GitHub runs the schedule immediately. The first landed run pre-books 3 days of posts with Meta — from then on, posts go out exactly at 06:00 / 12:00 / 18:00 EAT from Meta's own servers. Watch runs land: repo → **Actions** tab → **Social Media Agent**.
 
 <details>
 <summary>How activation works (reference / fresh clones)</summary>
@@ -109,7 +110,9 @@ Everything you might change later lives in **`data/config.json`**:
 | `pageAccessToken` | The page's permanent token — auto-maintained by the agent; posting keeps working even after `metaUserToken` expires |
 | `pageName`, `igUserId`, `igUsername` | Informational — auto-refreshed on connect |
 | `timezone`, `slots` | The schedule |
-| `autoPost` | Set `false` to pause automatic posting (GitHub runner reads it live) |
+| `scheduleDays` | Days ahead Meta pre-schedules posts (default 3; 2-7 recommended; 1 = disable pre-scheduling, rely on catch-up) |
+| `graceMinutes` | How long past a slot a late landed run may still post it directly (default 240) |
+| `autoPost` | Set `false` to pause automatic posting (the next landed run also cancels pending Meta-scheduled posts) |
 
 To post to a different page: change `pageId` (or just `igUsername`) in `data/config.json`, commit, push. On the next start or cron hit the agent detects the change, fetches the new page's token, and starts posting there — photos and captions carry over unchanged. The `_readme` field inside the file lists the page IDs available to your token.
 
