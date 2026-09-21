@@ -239,3 +239,22 @@ Work Log:
 Stage Summary:
 - Posting is now punctual by construction: Meta's servers publish at exactly 06:00/12:00/18:00 EAT; ONE GitHub fire per ~2 days keeps the horizon full; catch-up + force remain as fallbacks.
 - Watch: 18:00 EAT tonight appears with zero GitHub involvement; tomorrow all 3 slots punctual. Reconciliation fills permalinks on the next landed run.
+---
+Task ID: biblia-repo-setup
+Agent: main (Super Z)
+Task: Build Kaka-Doctor/Biblia-Tafsiri-Mbalimbali — FB-only daily 09:00 EAT verse poster for the "Biblia Tafsiri Mbalimbali" page (YouVersion VOTD images + SUV captions)
+
+Work Log:
+- Main agent health: state c7dfbe4 shows 2026-09-21 18:00 published BY META exactly on schedule (first full Meta-native cycle, zero GitHub involvement at post time); all 09-22 and 09-23 slots pre-booked; rotation at photo 3.
+- Page identified via config._readme: Biblia Tafsiri Mbalimbali = 447560908444853 (@biblia_tafsiri_mbalimbali, 100 fans) — verified live with the page token.
+- metaUserToken EXPIRED 2026-09-18 (permanent pageAccessToken still valid) → new repo cannot mint its own page token from here. Built a one-paste setup instead: data/meta-token.txt → next run auto-mints the permanent token into config.json + clears the file. Same mechanism ported back into THIS repo's gh-agent.mjs (84c3ae9; local dry-run verified with the live page token).
+- Collected 18 YouVersion VOTD images: 6 history days (Sept 15-20, scraped from bible.com/verse-of-the-day gallery via headless browser at 1280x1280 from static-youversionapi-com), 6 designs of the Sept-21 VOTD (Deut 7:9), 6 clean verse graphics via image-search. 6 web candidates rejected (screenshots / not verse graphics). Every image VLM-scanned (glm-5v-turbo) to read its scripture.
+- data/posts.json: 18 entries pairing each image with its own caption — SUV Swahili verse text + 2 sentences of explanation/encouragement + 5 hashtags ending #BibliaTafsiriMbalimbali (Lam 3:22, Isa 41:13, Rom 8:6, Prov 3:7, Phil 1:3, Ps 9:1, Deut 7:9 x6, Jer 29:11, Jas 1:2-4, 2 Cor 5:7, 1 Pet 4:8, Matt 5:3, Ps 21:7).
+- New repo pushed (8219a5b, 28 files): ported gh-agent.mjs (FB-only via platforms="facebook", manifest-driven rotation, dry-run without token), normalize-photos.js, 30-min heartbeat workflow with dryRun/force buttons, FB-only check-live-posts.mjs, README, fresh state.
+- Live test: workflow active on first push; dispatched dryRun run #1 → GREEN (18 pairs, 09:00 EAT slot plan, 3-day horizon, correct no-commit in dry-run).
+- FB Groups research (every-2-day sharing to 50 groups): Groups API deprecated in v19.0 (Jan 2024) and REMOVED from all versions 2024-04-22 — no official API path exists, page tokens included. Options reported to user (local browser automation with ToS risk, or manual sharing); not implemented.
+
+Stage Summary:
+- New repo fully operational pending ONE user step: paste a fresh Graph API Explorer token (pages_show_list + pages_manage_posts + pages_read_engagement) into data/meta-token.txt and push. First landed run mints the permanent page token, books 3 days of 09:00 EAT posts, clears the file.
+- Main repo behavior unchanged; token-recovery is now one paste.
+- Verse pool cycles every ~18 days; extend by appending to data/posts.json.
