@@ -41,6 +41,12 @@
           "permalink": "https://www.facebook.com/122141281113190335/posts/122141375631190335"
         }
       }
+    },
+    "2026-09-21": {
+      "06:00": {
+        "status": "missed",
+        "at": "2026-09-21T07:54:51.292Z"
+      }
     }
   },
   "rotation": {
@@ -75,6 +81,13 @@
       "date": "2026-09-20",
       "slot": "18:00",
       "message": "18:00 Auto: published — \"Picsart_25-09-04_09-23-13-446.jpg\" | IG ✓ | FB ✓"
+    },
+    {
+      "ts": "2026-09-21T07:54:51.292Z",
+      "level": "info",
+      "date": "2026-09-21",
+      "slot": "06:00",
+      "message": "Slot 06:00 missed (outside 240-min catch-up window)"
     }
   ]
 }
