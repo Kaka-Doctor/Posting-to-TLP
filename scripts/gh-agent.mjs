@@ -46,6 +46,7 @@ const CONFIG_FILE = path.join(ROOT, 'data', 'config.json')
 const STATE_FILE = path.join(ROOT, 'data', 'state.json')
 const PHOTOS_DIR = path.join(ROOT, 'data', 'photos')
 const CAPTIONS_FILE = path.join(ROOT, 'data', 'captions.txt')
+const TOKEN_FILE = path.join(ROOT, 'data', 'meta-token.txt')
 
 const GRAPH = 'https://graph.facebook.com/v21.0'
 
@@ -121,9 +122,22 @@ async function connect(cfg) {
       log(`[connect] permanent page token failed (${e.message}) — trying user-token exchange`)
     }
   }
-  // 2) rotation path: exchange user token → pages → page token
-  if (!cfg.metaUserToken) throw new Error('No working token: pageAccessToken invalid and metaUserToken missing — regenerate your Meta token and update data/config.json')
-  let token = cfg.metaUserToken
+  // 2) rotation path: exchange user token → pages → page token.
+  //    The user token may also live in data/meta-token.txt (paste-and-push,
+  //    no JSON editing); the file is cleared after the permanent page token
+  //    is minted and saved to data/config.json.
+  let token = String(cfg.metaUserToken || '').trim()
+  let tokenFromFile = false
+  if (!token) {
+    token = (await fs.readFile(TOKEN_FILE, 'utf-8').catch(() => '')).trim()
+    if (token) {
+      tokenFromFile = true
+      log('[connect] found user token in data/meta-token.txt — minting the permanent page token')
+    }
+  }
+  if (!token) {
+    throw new Error('No working token: pageAccessToken invalid and metaUserToken missing/expired — generate a fresh Graph API Explorer token and paste it into data/meta-token.txt (plain text, one line) and push; the agent mints the permanent page token on its next run')
+  }
   if (cfg.appId && cfg.appSecret) {
     try {
       const ex = await graphGet('oauth/access_token', {
@@ -135,26 +149,45 @@ async function connect(cfg) {
       if (ex.access_token) token = String(ex.access_token)
     } catch { /* keep raw token */ }
   }
-  const pages = await graphGet('me/accounts', {
-    fields: 'id,name,access_token,instagram_business_account{id,username}',
-    access_token: token,
-    limit: '50',
-  })
-  const list = (pages.data ?? []).map((p) => ({
-    id: String(p.id),
-    name: String(p.name),
-    accessToken: String(p.access_token),
-    igUserId: p.instagram_business_account ? String(p.instagram_business_account.id) : '',
-    igUsername: p.instagram_business_account ? String(p.instagram_business_account.username) : '',
-  }))
-  const page =
-    list.find((p) => cfg.pageId && p.id === cfg.pageId) ??
-    list.find((p) => cfg.igUsername && p.igUsername === cfg.igUsername) ??
-    list.find((p) => p.igUserId) ??
-    list[0]
-  if (!page) throw new Error('Token exchange OK but no pages visible to this token')
-  log(`[connect] user-token path → ${page.name} (${page.id}) | IG: @${page.igUsername}`)
-  return { via: 'exchange', page: { ...page, pageToken: page.accessToken } }
+  try {
+    const pages = await graphGet('me/accounts', {
+      fields: 'id,name,access_token,instagram_business_account{id,username}',
+      access_token: token,
+      limit: '50',
+    })
+    const list = (pages.data ?? []).map((p) => ({
+      id: String(p.id),
+      name: String(p.name),
+      accessToken: String(p.access_token),
+      igUserId: p.instagram_business_account ? String(p.instagram_business_account.id) : '',
+      igUsername: p.instagram_business_account ? String(p.instagram_business_account.username) : '',
+    }))
+    const page =
+      list.find((p) => cfg.pageId && p.id === cfg.pageId) ??
+      list.find((p) => cfg.igUsername && p.igUsername === cfg.igUsername) ??
+      list.find((p) => p.igUserId) ??
+      list[0]
+    if (!page) throw new Error('Token exchange OK but no pages visible to this token')
+    log(`[connect] user-token path → ${page.name} (${page.id}) | IG: @${page.igUsername}`)
+    return { via: 'exchange', tokenFromFile, userToken: true, sourceToken: token, page: { ...page, pageToken: page.accessToken } }
+  } catch (e) {
+    // 3) a pasted token might already BE a page token (not a user token)
+    if (cfg.pageId) {
+      const me = await graphGet(cfg.pageId, { fields: 'name,instagram_business_account{id,username}', access_token: token }).catch(() => null)
+      if (me && me.name) {
+        const ig = me.instagram_business_account ?? {}
+        log(`[connect] token works directly as the page token → ${me.name} | IG: @${ig.username ?? 'none'}`)
+        return {
+          via: 'exchange',
+          tokenFromFile,
+          userToken: false,
+          sourceToken: token,
+          page: { id: cfg.pageId, name: String(me.name), igUserId: String(ig.id ?? ''), igUsername: String(ig.username ?? ''), pageToken: token },
+        }
+      }
+    }
+    throw new Error(`${e.message} — and the token does not work as a page token either. Generate a fresh token in the Graph API Explorer (pages_show_list + pages_manage_posts + pages_read_engagement) and paste it into data/meta-token.txt`)
+  }
 }
 
 // ── Time / slots (mirrors src/lib/settings.ts + scheduler.ts) ───────────────
@@ -481,17 +514,25 @@ function buildHorizon(state, slots, now, tz, scheduleDays) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   const cfg = JSON.parse(await fs.readFile(CONFIG_FILE, 'utf-8'))
-  const { page, via } = await connect(cfg)
+  const { page, via, tokenFromFile, userToken, sourceToken } = await connect(cfg)
 
   // If we had to mint a page token through the user-token path, persist it
   // back into data/config.json — future runs (and page switches) then work
-  // from the permanent token without needing a fresh user token.
+  // from the permanent token without needing a fresh user token. A pasted
+  // data/meta-token.txt is cleared after use (kept in metaUserToken as the
+  // fallback rotation source if it was a real user token).
   if (via === 'exchange') {
     let changed = false
     if (cfg.pageAccessToken !== page.pageToken) { cfg.pageAccessToken = page.pageToken; changed = true }
     if (cfg.pageName !== page.name) { cfg.pageName = page.name; changed = true }
     if (cfg.igUserId !== page.igUserId) { cfg.igUserId = page.igUserId; changed = true }
     if (cfg.igUsername !== page.igUsername) { cfg.igUsername = page.igUsername; changed = true }
+    if (userToken && sourceToken && cfg.metaUserToken !== sourceToken) { cfg.metaUserToken = sourceToken; changed = true }
+    if (tokenFromFile) {
+      await fs.writeFile(TOKEN_FILE, '')
+      log('[connect] data/meta-token.txt cleared (permanent page token saved to data/config.json)')
+      changed = true
+    }
     if (changed) {
       await fs.writeFile(CONFIG_FILE, JSON.stringify(cfg, null, 2) + '\n')
       log('[connect] minted page token saved → data/config.json (committed with the state)')
