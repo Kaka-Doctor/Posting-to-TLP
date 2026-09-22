@@ -77,15 +77,17 @@
     },
     "2026-09-22": {
       "06:00": {
-        "status": "scheduled",
+        "status": "published",
         "publishTime": "2026-09-22T03:00:00.000Z",
-        "at": "2026-09-21T12:57:16.068Z",
+        "at": "2026-09-22T03:00:00.000Z",
         "photo": "Picsart_26-01-05_14-55-02-085.jpg",
         "ig": {
-          "id": "18499462627097987"
+          "id": "18499462627097987",
+          "permalink": "https://www.instagram.com/p/DdjNj2CGPYN/"
         },
         "fb": {
-          "id": "122141469081190335"
+          "id": "928221430380831_122141469081190335",
+          "permalink": "https://www.facebook.com/photo.php?fbid=122141469081190335&set=a.122103642315190335&type=3"
         }
       },
       "12:00": {
@@ -313,6 +315,13 @@
       "date": "2026-09-24",
       "slot": "18:00",
       "message": "18:00 pre-scheduled via Meta (publishes 2026-09-24T15:00:00.000Z) — \"Picsart_26-01-05_14-55-02-085.jpg\" | IG ✓ | FB ✓"
+    },
+    {
+      "ts": "2026-09-22T06:13:08.017Z",
+      "level": "success",
+      "date": "2026-09-22",
+      "slot": "06:00",
+      "message": "06:00 published by Meta on schedule — IG ✓ https://www.instagram.com/p/DdjNj2CGPYN/ | FB ✓ https://www.facebook.com/photo.php?fbid=122141469081190335&set=a.122103642315190335&type=3"
     }
   ]
 }
