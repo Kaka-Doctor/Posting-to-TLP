@@ -7,8 +7,8 @@ name: Social Media Agent
 #  :13/:43 — but the timing barely matters. Every run that lands PRE-SCHEDULES
 #  the next "scheduleDays" days (default 3) of slots with META'S OWN
 #  scheduled publishing — Meta's servers then publish each post exactly at
-#  its slot time (06:00 / 12:00 / 18:00 EAT by default), no matter when or
-#  whether GitHub fires again.
+#  its slot time (ONE post per day at 06:00 EAT by default), no matter when
+#  or whether GitHub fires again.
 #
 #  WHY THIS DESIGN? GitHub silently DROPS most scheduled runs on young
 #  accounts — observed live: 3 of ~30 fires landed on 2026-09-20, and just
