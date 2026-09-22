@@ -13,7 +13,7 @@ name: Social Media Agent
 #  WHY THIS DESIGN? GitHub silently DROPS most scheduled runs on young
 #  accounts — observed live: 3 of ~30 fires landed on 2026-09-20, and just
 #  1 of ~70 on 2026-09-21, regardless of cron density. Relying on GitHub
-#  firing at slot time does not work. With Meta-side pre-scheduling, ONE
+#  firing at slot time does not work. With Meta-side FB pre-scheduling, ONE
 #  landed run every 2 days keeps the full horizon booked. Landed runs also
 #  record permalinks after posts go live, and late direct posting (4-hour
 #  catch-up, "graceMinutes") remains the fallback for unscheduled slots.
