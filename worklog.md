@@ -258,3 +258,26 @@ Stage Summary:
 - New repo fully operational pending ONE user step: paste a fresh Graph API Explorer token (pages_show_list + pages_manage_posts + pages_read_engagement) into data/meta-token.txt and push. First landed run mints the permanent page token, books 3 days of 09:00 EAT posts, clears the file.
 - Main repo behavior unchanged; token-recovery is now one paste.
 - Verse pool cycles every ~18 days; extend by appending to data/posts.json.
+
+---
+Task ID: biblia-dual-platform
+Agent: main (Super Z)
+Task: Enable Instagram posting for Biblia-Tafsiri-Mbalimbali (user discovered the connected IG page + provided a fresh token); fix fallout
+
+Work Log:
+- User token verified: valid until 2026-09-22 07:00 UTC (SHORT-LIVED — would have died in ~1h). Acted immediately: exchanged to long-lived via app secret (appId 1396184215347531 + appSecret), then minted the PERMANENT page token for Biblia (447560908444853) — debug_token shows type=PAGE, expires_at=0 (never expires), scopes include pages_manage_posts + instagram_content_publish.
+- IG account confirmed: 17841470180666328 = @biblia_tafsiri_mbalimbali (114 followers, 42 posts, linked to the FB page).
+- Biblia repo updated (commit b25cb1b + later): platforms "facebook,instagram", pageAccessToken + igUserId/igUsername in config, check-live-posts.mjs extended with IG section, README/workflow updated for dual-platform.
+- FIRST DUAL-PLATFORM POST LIVE: run #6 posted the 09:00 EAT slot to BOTH — IG https://www.instagram.com/p/DdlDM5Tjrcu/ + FB post 122205161444587338 (Rom 8:6, votd-2026-09-17.jpg) at 09:05 EAT. 09-23 + 09-24 FB halves pre-scheduled on Meta.
+- ⚠ DISCOVERED + FIXED two systemic bugs:
+  1. Duplicate-guard false positive: IG /media edge lists SCHEDULED containers with creation-time timestamps → the guard misread the agent's own horizon booking as "a post just went out" and skipped the 09:00 slot (observed live: run at 08:54 booked → run at 09:02 skipped). Fixed in BOTH repos: guard ignores IG media ids that state.json recorded as scheduled; limit 3→10.
+  2. ⚠⚠ IG API SCHEDULING IS DEAD: the container's publish_time is SILENTLY IGNORED — media_publish publishes IMMEDIATELY (controlled experiment: 25-min-ahead probe post went live instantly, deleted after; scheduled_publish_time returns "User must be on whitelist"). All "Meta-scheduled" IG posts had actually published at BOOKING time — the user's IG page had received ~11 premature posts dumped in bursts. FB scheduling (scheduled_publish_time on /photos) works PERFECTLY (verified: 03:00:09 and 15:00:03 exact publishes).
+- CLEANUP: deleted all 11 premature IG posts (9 main repo: 09-22 12:00/18:00 + 09-23×3 + 09-24×3 + today's 06:00; 2 Biblia: 09-23/09-24) via Graph DELETE. State surgery: removed premature ig.ids, pinned captions into slot records (rebase conflict with remote reconcile resolved: kept FB permalinks).
+- NEW ARCHITECTURE (both repos, commits 98a47ee/fa0b9ae + Biblia ports): FB stays Meta-scheduled (3-day horizon, punctual by construction). IG halves are NEVER pre-scheduled — landed runs post them directly in each slot's [slot time, +240 min] catch-up window, reusing the slot's pinned photo+caption; guard for IG-only posts checks IG only (minutesSinceLastIgPost); reconcile confirms FB permalink and closes grace-lapsed slots as partial; force rescues the most recent slot missing an IG half.
+- LIVE VERIFICATION of the new architecture: dispatched main repo run #15 → posted ONLY the IG half of today's 06:00 slot (FB already live since 03:00:09) at 09:21 EAT with pinned content — https://www.instagram.com/p/DdlFBlCmNyb/ ("posted 37s ago" at check time). IG page timeline now clean.
+
+Stage Summary:
+- Biblia repo: FULLY DUAL-PLATFORM and live — today's 09:00 slot published to FB + IG; 09-23/24 FB halves Meta-scheduled; IG halves will be catch-up posted by landed runs (or force).
+- Main repo: same reliability model — FB always exact via Meta; IG posted by first landed run after each slot (12:00 and 18:00 EAT today pending; 12:00 to be dispatched ~12:05).
+- Permanent page token for Biblia minted from the user's short-lived token one minute-class before expiry; token-recovery path (meta-token.txt) remains as fallback.
+- Recommendation for perfect IG punctuality: external pinger (cron-job.org → workflow_dispatch), since IG cannot ride Meta's scheduler.
