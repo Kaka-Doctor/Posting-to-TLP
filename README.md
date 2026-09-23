@@ -31,17 +31,17 @@ data/config.json ─┘          │
               Post history + permalinks in the dashboard
 ```
 
-Missed a slot because the server was restarting? The **catch-up window** (default 4 hours — `graceMinutes` in `data/config.json`) posts it as soon as the agent is back online — without ever double-posting the same slot. If even that passes, a manual **force** run still posts the same day's missing slot.
+Missed a slot because the server was restarting? The **catch-up window** (default 90 minutes — `graceMinutes` in `data/config.json`) posts it as soon as the agent is back online — without ever double-posting the same slot. If even that passes, a manual **force** run still posts the same day's missing slot.
 
 ## Running on GitHub Actions — the agent hosted by GitHub itself
 
 **No web host at all.** GitHub's own servers run the agent for you, for free:
 
-- `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes, around the clock** — but the timing barely matters (see the next bullet)
+- `.github/workflows/social-agent.yml` is triggered by GitHub's cron on **two schedules** — a daily **06:03 EAT punctuality fire** (posts the IG half minutes after the 06:00 slot) and a **30-min heartbeat** around the clock (retries + horizon booking)
 - **Facebook: Meta does the punctual publishing.** Each landed run pre-schedules the next `scheduleDays` days (default 3) of FB posts with **Meta's own scheduled publishing** (`scheduled_publish_time`) — the same infrastructure Meta Business Suite uses. Meta's servers publish each FB post at exactly its slot time, even if GitHub never fires again that day.
-- **Instagram: catch-up posting.** Instagram's API has **no working scheduling** (the `publish_time` container field is silently ignored — `media_publish` posts immediately; verified experimentally 2026-09-22). So the IG half of each slot is posted directly by the first landed run after the slot time (within the 5-hour catch-up window, `graceMinutes: 300`). FB is always exact; IG is exact whenever a run lands near the slot, minutes-to-hours late otherwise, and force-dispatch rescues the rest.
-- **External-post adoption (2026-09-23).** An **outside poster** (not this agent — it posts an FB+IG pair **without** the Graph API, so no "via Business" attribution; observed every **Mon/Wed/Fri at ~09:00 EAT** for months; likely a phone automation or an old scheduling tool) also publishes to the page. When such a post covers a slot's IG half, the agent now **adopts it** (records its id/permalink, marks the slot done) instead of double-posting. If you recognize this 9am Mon/Wed/Fri poster, retire it so the page never gets duplicate posts (on 2026-09-23 it created a second FB post on top of the 6am one). To make IG punctual at 06:00 (agent-side), see "Making IG punctual" below.
-- Why not rely on GitHub firing at slot time? GitHub **silently drops most scheduled runs** on young accounts (observed live: 3 of 30 fires landed one day, 1 of 70 the next — on 2026-09-23 ten consecutive fires were dropped). One landed run every ~2 days keeps the whole horizon booked — and landed runs also record permalinks, mark posts published, and late direct posting (5-hour catch-up, `graceMinutes`) remains the fallback
+- **Instagram: punctual fire + short catch-up.** Instagram's API has **no working scheduling** (the `publish_time` container field is silently ignored — `media_publish` posts immediately; verified experimentally 2026-09-22). So the IG half of each slot is posted directly by the first landed run after the slot time — normally the **06:03 EAT punctuality fire** (IG lands at ~06:04–06:07 EAT). If that fire is dropped, the 30-min heartbeat retries within a **90-minute window** (06:00–07:30 EAT, `graceMinutes: 90`, owner rule 2026-09-23: *"if it fails or it delays it may post some time soon after that, not just at any moment of the same day"*). Past 07:30 the day's IG half is **skipped** (event log records a `partial` slot — the **force** button can still post it manually); IG never goes out at arbitrary times of day.
+- **External-post adoption (2026-09-23).** An **outside poster** (not this agent — it posts an FB+IG pair **without** the Graph API, so no "via Business" attribution; observed every **Mon/Wed/Fri at ~09:00 EAT** for months; likely a phone automation or an old scheduling tool) also publishes to the page. The agent now posts its own IG half at ~06:04 — **before** the 9am external poster — so the two rarely interact. When GitHub has a bad dropping day and the agent's IG half misses, the external post is **adopted** (id/permalink recorded, slot marked done) instead of double-posting. A failed IG attempt never closes a slot — later landed runs retry inside the 90-min window; before retrying, the live feed is also scanned for this slot's own caption (phantom publish) and adopted. If you recognize this 9am Mon/Wed/Fri poster, you may still retire it so the page never gets duplicate FB posts (on 2026-09-23 it created a second FB post on top of the 6am one).
+- Why not rely on GitHub firing at slot time? GitHub **silently drops most scheduled runs** on young accounts (observed live: 3 of 30 fires landed one day, 1 of 70 the next — on 2026-09-23 ten consecutive fires were dropped). One landed run every ~2 days keeps the whole horizon booked — and landed runs also record permalinks, mark posts published, and bounded late direct posting (90-min catch-up, `graceMinutes`) remains the fallback
 - It publishes to Instagram + Facebook **directly from the repo files** and commits the state file `data/state.json` (done slots, rotation counters, event log) back to the repo, so every run knows what already happened
 - Run history + logs live in your repo's **Actions tab**; a failed run shows red **and emails you** — nothing fails silently
 
@@ -62,9 +62,9 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 > **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
 
-### Making IG punctual at 06:00 (optional, 5-minute setup)
+### Making IG even more punctual (optional backup)
 
-FB is always punctual (Meta publishes it). IG can't be scheduled via API, so by default IG waits for a GitHub run to land after 06:00 — usually minutes late, occasionally hours. If you want IG at ~06:05 sharp every day, add **one external cron job** that dispatches the workflow — dispatches are 100% reliable (unlike GitHub's own schedule):
+FB is always punctual (Meta publishes it). IG can't be scheduled via API, so the agent posts it with the first landed run after 06:00 — normally the workflow's **built-in 06:03 EAT punctuality fire**, which lands IG at ~06:04–06:07. For a redundant external backup (useful if GitHub has a bad fire-dropping day — it dropped ten consecutive fires on 2026-09-23), add **one external cron job** that dispatches the workflow — dispatches are 100% reliable (unlike GitHub's own schedule):
 
 1. Create a free account at **cron-job.org** → *Create cron job*
 2. **URL:** `https://api.github.com/repos/Kaka-Doctor/Posting-to-social-medias/actions/workflows/social-agent.yml/dispatches`
@@ -125,7 +125,7 @@ Everything you might change later lives in **`data/config.json`**:
 | `pageName`, `igUserId`, `igUsername` | Informational — auto-refreshed on connect |
 | `timezone`, `slots` | The schedule |
 | `scheduleDays` | Days ahead Meta pre-schedules posts (default 3; 2-7 recommended; 1 = disable pre-scheduling, rely on catch-up) |
-| `graceMinutes` | How long past a slot a late landed run may still post it directly (default 240) |
+| `graceMinutes` | How long past a slot a late landed run may still post it directly (default 90 — bounded "soon after" retries; past it, the force button is the only rescue) |
 | `autoPost` | Set `false` to pause automatic posting (the next landed run also cancels pending Meta-scheduled posts) |
 
 To post to a different page: change `pageId` (or just `igUsername`) in `data/config.json`, commit, push. On the next start or cron hit the agent detects the change, fetches the new page's token, and starts posting there — photos and captions carry over unchanged. The `_readme` field inside the file lists the page IDs available to your token.

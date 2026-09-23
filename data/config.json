@@ -1,5 +1,5 @@
 {
-  "_readme": "THE config file — everything you might switch lives here. (1) Switch page: set pageId (or igUsername) + a FRESH metaUserToken (Graph API Explorer) and push; the agent mints the new page's permanent token on the next run and saves it to pageAccessToken automatically. (2) pageAccessToken: permanent page token — posting keeps working even after metaUserToken expires (page tokens never expire). (3) Pause everything: set autoPost to false (the GitHub Actions runner reads it live; force runs still work). (4) Schedule: slots + timezone (currently ONE post per day at 06:00 EAT). Your pages: Teacher's Lesson Plan=928221430831 (@teachers_lesson_plan), Ladies Of Destiny=710815315448 (@ladies_of_destiny_), Biblia Tafsiri Mbalimbali=447560908444853 (@biblia_tafsiri_mbalimbali), RHEMA Miembeni - Bukoba=1091066014250146 (@rhemamiembenibukoba), Harvest Mission Secondary School=437296036362622 (@bwillson77). If this repo ever goes public, move these values to host env vars instead.",
+  "_readme": "THE config file — everything you might switch lives here. (1) Switch page: set pageId (or igUsername) + a FRESH metaUserToken (Graph API Explorer) and push; the agent mints the new page's permanent token on the next run and saves it to pageAccessToken automatically. (2) pageAccessToken: permanent page token — posting keeps working even after metaUserToken expires (page tokens never expire). (3) Pause everything: set autoPost to false (the GitHub Actions runner reads it live; force runs still work). (4) Schedule: slots + timezone (currently ONE post per day at 06:00 EAT). (5) IG catch-up window after slot time: graceMinutes (90 = IG retries until 1.5h past the slot, then that day's IG is skipped; the force button can still rescue it manually). Your pages: Teacher's Lesson Plan=928221430831 (@teachers_lesson_plan), Ladies Of Destiny=710815315448 (@ladies_of_destiny_), Biblia Tafsiri Mbalimbali=447560908444853 (@biblia_tafsiri_mbalimbali), RHEMA Miembeni - Bukoba=1091066014250146 (@rhemamiembenibukoba), Harvest Mission Secondary School=437296036362622 (@bwillson77). If this repo ever goes public, move these values to host env vars instead.",
   "metaUserToken": "EAAT10ngyYUsBSjpCDsPtj7ApyOdPZA1tvWhrZAbGgHZB7GMRb7OdDnOoTwOJjHe79aUnElc7QZCQ8wQsB0ixOaQQu4ejj2MmtxiD4rMYiw9L6aHaZAYNnTIZB5VEx9s2ITamrgzm0PkbCCZCCSYMepZAKnaWuPZAkce7zjkTnjrFBZBx1jHBycaDVz3379JTtWKT78eP0YxjRcHoZC0FzsA0oap3oT3MdBPpBZAoRxAMKGDmy36YVcRlDn2d702DYrWBrhJnxmjTOZAvn0kMVZA2Og6UpIg38mYIZB1",
   "appId": "1396184215347531",
   "appSecret": "c2e2387de1cefa6b8c95a963b49f5c6d",
@@ -10,6 +10,6 @@
   "timezone": "Africa/Dar_es_Salaam",
   "slots": "06:00",
   "pageAccessToken": "EAAT10ngyYUsBSryag7Q6P1F4U4BnNUFcXTx9Hn08JZCK3jKbn4yjdXILWkbjl0rqTCcfZBd50Mr34V7A7uJjOJPCgaE5SDThlAUcS1bz61xdZAvpDAGIb4O0z8QgVwk4o3ROXZA6pHRKhr27GKRAwokt9ZAeQrZAbttp2ZBVGaduLrHekppQ0AZAc3e2ZCSbZBRCbzsCZB4wgnsKJgKnERWfKEp",
-  "graceMinutes": 300,
+  "graceMinutes": 90,
   "scheduleDays": 3
 }
