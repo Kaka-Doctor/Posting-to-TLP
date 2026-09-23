@@ -39,8 +39,9 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 
 - `.github/workflows/social-agent.yml` is triggered by GitHub's cron **every 30 minutes, around the clock** — but the timing barely matters (see the next bullet)
 - **Facebook: Meta does the punctual publishing.** Each landed run pre-schedules the next `scheduleDays` days (default 3) of FB posts with **Meta's own scheduled publishing** (`scheduled_publish_time`) — the same infrastructure Meta Business Suite uses. Meta's servers publish each FB post at exactly its slot time, even if GitHub never fires again that day.
-- **Instagram: catch-up posting.** Instagram's API has **no working scheduling** (the `publish_time` container field is silently ignored — `media_publish` posts immediately; verified experimentally 2026-09-22). So the IG half of each slot is posted directly by the first landed run after the slot time (within the 4-hour catch-up window). FB is always exact; IG is exact whenever a run lands near the slot, minutes-to-hours late otherwise, and force-dispatch rescues the rest.
-- Why not rely on GitHub firing at slot time? GitHub **silently drops most scheduled runs** on young accounts (observed live: 3 of 30 fires landed one day, 1 of 70 the next). One landed run every ~2 days keeps the whole horizon booked — and landed runs also record permalinks, mark posts published, and late direct posting (4-hour catch-up, `graceMinutes`) remains the fallback
+- **Instagram: catch-up posting.** Instagram's API has **no working scheduling** (the `publish_time` container field is silently ignored — `media_publish` posts immediately; verified experimentally 2026-09-22). So the IG half of each slot is posted directly by the first landed run after the slot time (within the 5-hour catch-up window, `graceMinutes: 300`). FB is always exact; IG is exact whenever a run lands near the slot, minutes-to-hours late otherwise, and force-dispatch rescues the rest.
+- **External-post adoption (2026-09-23).** An **outside poster** (not this agent — it posts an FB+IG pair **without** the Graph API, so no "via Business" attribution; observed every **Mon/Wed/Fri at ~09:00 EAT** for months; likely a phone automation or an old scheduling tool) also publishes to the page. When such a post covers a slot's IG half, the agent now **adopts it** (records its id/permalink, marks the slot done) instead of double-posting. If you recognize this 9am Mon/Wed/Fri poster, retire it so the page never gets duplicate posts (on 2026-09-23 it created a second FB post on top of the 6am one). To make IG punctual at 06:00 (agent-side), see "Making IG punctual" below.
+- Why not rely on GitHub firing at slot time? GitHub **silently drops most scheduled runs** on young accounts (observed live: 3 of 30 fires landed one day, 1 of 70 the next — on 2026-09-23 ten consecutive fires were dropped). One landed run every ~2 days keeps the whole horizon booked — and landed runs also record permalinks, mark posts published, and late direct posting (5-hour catch-up, `graceMinutes`) remains the fallback
 - It publishes to Instagram + Facebook **directly from the repo files** and commits the state file `data/state.json` (done slots, rotation counters, event log) back to the repo, so every run knows what already happened
 - Run history + logs live in your repo's **Actions tab**; a failed run shows red **and emails you** — nothing fails silently
 
@@ -60,6 +61,18 @@ Missed a slot because the server was restarting? The **catch-up window** (defaul
 **Free-tier facts** (private repo, GitHub Free): only runs that START bill minutes — realistically ~2-5 landed runs/day ≈ 100-300 of the 2000 monthly included minutes. The agent's state commits keep the repository active, so the schedule is never auto-disabled for inactivity. GitHub drops most scheduled fires on young accounts — which is exactly why the agent pre-schedules with Meta instead of trusting GitHub's timing.
 
 > **One host at a time.** The GitHub runner, a Vercel deployment, and a local dev server each keep their own "what's posted" state. Running two of them on the same page can double-post (the 30-minute Meta-side duplicate guard catches most collisions, but not a same-minute race). Pick **one** active host — if you deploy to Vercel later, disable the workflow (or set `"autoPost": false`) first.
+
+### Making IG punctual at 06:00 (optional, 5-minute setup)
+
+FB is always punctual (Meta publishes it). IG can't be scheduled via API, so by default IG waits for a GitHub run to land after 06:00 — usually minutes late, occasionally hours. If you want IG at ~06:05 sharp every day, add **one external cron job** that dispatches the workflow — dispatches are 100% reliable (unlike GitHub's own schedule):
+
+1. Create a free account at **cron-job.org** → *Create cron job*
+2. **URL:** `https://api.github.com/repos/Kaka-Doctor/Posting-to-social-medias/actions/workflows/social-agent.yml/dispatches`
+3. **Schedule:** daily, **06:05** (timezone Africa/Dar_es_Salaam)
+4. **Request:** method `POST` with header `Authorization: Bearer YOUR_GITHUB_PAT` and body `{"ref":"main"}` (cron-job.org calls this "Advanced settings / custom headers"; if it's behind their premium, any scheduler that can POST with a header works — EasyCron, a VPS crontab, etc.)
+5. Recommendation: mint a **minimal** fine-grained PAT for this (only this repo, only **Actions: Read and write**) so the pinger never holds write access to your files.
+
+The dispatched run lands within ~1 minute, sees the 06:00 slot inside its catch-up window, and posts the IG half at ~06:06. Everything else (FB pre-booking, reconcile, adoption) keeps working exactly as before. **The same button is the manual fallback:** repo → Actions → Social Media Agent → Run workflow.
 
 ### ✅ Already activated — nothing to set up
 

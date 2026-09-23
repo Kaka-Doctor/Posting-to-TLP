@@ -319,6 +319,33 @@ async function minutesSinceLastIgPost(page, state) {
   return null
 }
 
+/** Detect an IG post the state does NOT know about, newer than `sinceMs`.
+ *  WHY: the owner has an EXTERNAL poster (observed live 2026-09-23; fires
+ *  Mon/Wed/Fri ~09:00 EAT = 06:00 UTC, posts an FB+IG pair with repo content
+ *  but WITHOUT the Graph API — no app attribution — likely a phone automation
+ *  or an old scheduling tool). When such a post covers a slot's IG half, the
+ *  agent ADOPTS it instead of double-posting. Returns the newest unknown
+ *  post in [sinceMs, now] or null. */
+async function findExternalIgPost(page, state, sinceMs) {
+  if (!page.igUserId) return null
+  const knownIgIds = new Set()
+  for (const day of Object.values(state?.days ?? {})) {
+    for (const rec of Object.values(day ?? {})) {
+      if (rec?.ig?.id) knownIgIds.add(String(rec.ig.id))
+    }
+  }
+  try {
+    const json = await graphGet(`${page.igUserId}/media`, { fields: 'id,timestamp,permalink', limit: '10', access_token: page.pageToken })
+    const candidates = (json.data ?? [])
+      .filter((m) => !knownIgIds.has(String(m.id)) && m.timestamp)
+      .map((m) => ({ id: String(m.id), permalink: m.permalink ? String(m.permalink) : '', ts: new Date(m.timestamp).getTime() }))
+      .filter((m) => m.ts >= sinceMs && m.ts <= Date.now() + 60000)
+      .sort((a, b) => b.ts - a.ts)
+    return candidates[0] ?? null
+  } catch { /* IG edge unreadable — treat as no external post */ }
+  return null
+}
+
 // ── Publish (IG via Meta CDN, FB via binary upload) ─────────────────────────
 async function publishInstagram(page, photoPath, caption) {
   const steps = []
@@ -455,11 +482,23 @@ async function reconcileScheduled(page, state, graceMinutes) {
         rec.at = rec.publishTime
         recordEvent(state, { level: 'success', date: dk, slot: label, message: `${label} completed — FB (Meta) + IG (catch-up) both live` })
         changed = true
-      } else if (Date.now() > due + graceMinutes * 60000) {
-        rec.status = 'partial'
-        rec.at = rec.publishTime
-        recordEvent(state, { level: 'error', date: dk, slot: label, message: `${label} partial — FB published by Meta on time, but no landed run caught up the IG half within ${graceMinutes} min` })
-        changed = true
+      } else {
+        // Adopt an EXTERNAL IG post (owner's Mon/Wed/Fri 09:00 EAT poster etc.)
+        // that appeared since this slot became due — instead of double-posting
+        // or later declaring the slot partial when IG is actually live.
+        const ext = await findExternalIgPost(page, state, due - 10 * 60000)
+        if (ext) {
+          rec.ig = { id: ext.id, permalink: ext.permalink, external: true }
+          rec.status = 'published'
+          rec.at = new Date(ext.ts).toISOString()
+          recordEvent(state, { level: 'info', date: dk, slot: label, message: `${label} IG half covered by an EXTERNAL post (${ext.permalink || ext.id}) — adopted instead of double-posting` })
+          changed = true
+        } else if (Date.now() > due + graceMinutes * 60000) {
+          rec.status = 'partial'
+          rec.at = rec.publishTime
+          recordEvent(state, { level: 'error', date: dk, slot: label, message: `${label} partial — FB published by Meta on time, but no landed run caught up the IG half within ${graceMinutes} min` })
+          changed = true
+        }
       }
     }
   }
