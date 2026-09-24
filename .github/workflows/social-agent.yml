@@ -12,8 +12,11 @@ name: Social Media Agent
 #    • "13,43 * * * *" — 30-min heartbeat around the clock (off-peak minutes
 #      — GitHub drops scheduled runs at peak minutes when Actions load is
 #      high). Retries for a missed IG half land on these fires within the
-#      90-min catch-up window (06:00-07:30 EAT, "graceMinutes" in
-#      data/config.json); past the window the day's IG half is skipped.
+#      240-min catch-up window (06:00-10:00 EAT, "graceMinutes" in
+#      data/config.json — the SAME 4-hour window Biblia Tafsiri Mbalimbali
+#      posts reliably with every day, owner rule 2026-09-24); past the
+#      window the day's IG half is skipped (the force button rescues it
+#      manually, posting just the IG half).
 #  Beyond that, the timing barely matters: every run that lands PRE-SCHEDULES
 #  the next "scheduleDays" days (default 3) of slots with META'S OWN
 #  scheduled publishing — Meta's servers then publish each post exactly at
@@ -22,6 +25,14 @@ name: Social Media Agent
 #
 #  ⟶ To CHANGE posting times: edit "slots" (and "timezone") in data/config.json
 #    only — this file never needs to change.
+#
+#  MUTUAL RESCUE (owner rule 2026-09-24): every landed run also checks the
+#  sibling pages (data/config.json "siblings") via the GitHub API and
+#  dispatches a sibling whose IG half is due but has no landed run of its own
+#  — API dispatches are 100% reliable, unlike cron schedules. Needs the
+#  DISPATCH_TOKEN repo secret (fine-grained PAT: contents:read +
+#  actions:write on the sibling repos). Dispatched runs carry input
+#  rescuedBy and skip their own sibling check (one hop, no ping-pong).
 # ⟶ To POST RIGHT NOW (or rescue a MISSED slot the same day): Actions tab →
 #    "Social Media Agent" → "Run workflow" → tick "force".
 # ⟶ To TEST without publishing: same, but tick "dryRun".
@@ -48,6 +59,10 @@ on:
         description: "Force — post the most recent unposted slot right now (rescues a missed slot the same day)"
         type: boolean
         default: false
+      rescuedBy:
+        description: "Internal — set automatically when a sibling page's agent dispatched this run (mutual rescue); skips this run's own sibling check"
+        type: string
+        default: ""
 
 # Never let two runs race on data/state.json
 concurrency:
@@ -84,6 +99,12 @@ jobs:
         env:
           INPUT_DRY_RUN: ${{ inputs.dryRun }}
           INPUT_FORCE: ${{ inputs.force }}
+          INPUT_RESCUED_BY: ${{ inputs.rescuedBy }}
+          # Mutual rescue (owner rule 2026-09-24): lets this agent check the
+          # sibling pages' repos and dispatch their workflows when a sibling
+          # has an IG half due but no landed run of its own. Fine-grained PAT
+          # with contents:read + actions:write on the sibling repos.
+          DISPATCH_TOKEN: ${{ secrets.DISPATCH_TOKEN }}
         run: |
           FLAGS=""
           if [ "$INPUT_DRY_RUN" = "true" ]; then FLAGS="$FLAGS --dry-run"; fi
