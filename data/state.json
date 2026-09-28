@@ -132,13 +132,19 @@
     },
     "2026-09-28": {
       "06:00": {
-        "status": "scheduled",
+        "status": "published",
         "publishTime": "2026-09-28T03:00:00.000Z",
-        "at": "2026-09-25T22:49:02.645Z",
+        "at": "2026-09-28T06:00:43.000Z",
         "photo": "Picsart_25-09-04_02-50-15-437.jpg",
         "caption": "✍️ 𝐓𝐄𝐀𝐂𝐇𝐄𝐑'𝐒 𝐋𝐄𝐒𝐎𝐍 𝐏𝐋𝐀𝐍  \n📒 𝐀𝐧𝐝𝐚𝐥𝐢𝐨 𝐥𝐚 𝐒𝐨𝐦𝐨  \n\n📚 𝐒𝐂𝐇𝐄𝐌𝐄𝐒 𝐎𝐅 𝐖𝐎𝐑𝐊  \n📁 𝐌𝐚𝐚𝐳𝐢𝐦𝐢𝐨 𝐲𝐚 𝐊𝐚𝐳𝐢  \n\n💥𝐍𝐄𝐖 𝐂𝐔𝐑𝐈𝐂𝐔𝐋𝐔𝐌  \n✨𝐌𝐓𝐀𝐀𝐋𝐀 𝐌𝐏𝐘𝐀  \n2️⃣0️⃣2️⃣6️⃣ \n\n🔴 𝐅𝐨𝐫 𝐏𝐫𝐢𝐦𝐚𝐫𝐲 & 𝐒𝐞𝐜𝐨𝐧𝐝𝐚𝐫𝐲 𝐓𝐞𝐚𝐜𝐡𝐞𝐫𝐬.  \n🔴 𝐅𝐨𝐫 𝐄𝐧𝐠𝐥𝐢𝐬𝐡 & 𝐒𝐰𝐚𝐡𝐢𝐥𝐢 𝐌𝐞𝐝𝐢𝐮𝐦 𝐬𝐜𝐡𝐨𝐥𝐬.  \n👉 𝐍𝐨 𝐑𝐞𝐠𝐢𝐬𝐭𝐫𝐚𝐭𝐢𝐨𝐧 🙅  \n👉 𝐍𝐨 𝐒𝐢𝐠𝐧 𝐔𝐩 🚫  \n👉 𝐍𝐨 𝐋𝐨𝐠 𝐈𝐧 📝  \n\nNow available on all 𝐢𝐏𝐡𝐨𝐧𝐞𝐬, 𝐖𝐞𝐛 𝐛𝐫𝐨𝐰𝐬𝐞𝐫𝐬, 𝐃𝐞𝐬𝐤𝐭𝐨𝐩, 𝐋𝐚𝐩𝐭𝐨𝐩 𝐨𝐫 𝐚𝐧𝐲 𝐏𝐜 by clicking here: https://kaka-doctor.github.io/teachers-lesson-plan-tz/\nOr download the App from 𝐏𝐥𝐚𝐲𝐒𝐭𝐨𝐫𝐞 by clicking here: https://play.google.com/store/apps/details?id=teachers.lessonplan\n\n#TeachersTz #LessonPlans #SchemesOfWork #TIEbooks #Primary&Secondary",
         "fb": {
-          "id": "122142120663190335"
+          "id": "928221430380831_122142120663190335",
+          "permalink": "https://www.facebook.com/photo.php?fbid=122142120663190335&set=a.122103642315190335&type=3"
+        },
+        "ig": {
+          "id": "18010108529768428",
+          "permalink": "https://www.instagram.com/p/Dd0fev7Dx7M/",
+          "external": true
         }
       }
     },
@@ -409,6 +415,13 @@
       "date": "2026-09-30",
       "slot": "06:00",
       "message": "06:00 FB half pre-scheduled via Meta (publishes 2026-09-30T03:00:00.000Z) — \"Picsart_25-09-04_09-23-13-446.jpg\"; IG half to be posted by a landed run in the catch-up window"
+    },
+    {
+      "ts": "2026-09-28T06:57:19.450Z",
+      "level": "info",
+      "date": "2026-09-28",
+      "slot": "06:00",
+      "message": "06:00 IG half covered by an EXTERNAL post (https://www.instagram.com/p/Dd0fev7Dx7M/) — adopted instead of double-posting"
     }
   ]
 }
