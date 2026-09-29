@@ -35,6 +35,7 @@ Third caption here.
 - Keep each caption between 2 and 2200 characters (Instagram limit).
 - Captions are posted **exactly as written** — nothing is rewritten.
 - Empty sections and duplicates are ignored automatically, so you can edit this file freely and re-scan.
+- Captions **alternate**: each day's post uses the next one in the file, cycling back to the first after the last (2026-09-29: 10 versions of the same message — one per day, version 10 → back to version 1). To change which one comes next, set `rotation.captionIndex` in `data/state.json` (0 = first caption).
 
 ## 3. The switch file → `data/config.json`
 
