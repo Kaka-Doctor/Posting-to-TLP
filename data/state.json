@@ -188,11 +188,23 @@
           "id": "122142527031190335"
         }
       }
+    },
+    "2026-10-02": {
+      "06:00": {
+        "status": "scheduled",
+        "publishTime": "2026-10-02T03:00:00.000Z",
+        "at": "2026-09-29T23:41:22.215Z",
+        "photo": "825292401_4540751546191558_5861245752872866254_n.webp.jpg",
+        "caption": "🎓 New week, new term, fresh 𝐬𝐜𝐡𝐞𝐦𝐞𝐬!\n\n✍️ 𝐓𝐄𝐀𝐂𝐇𝐄𝐑'𝐒 𝐋𝐄𝐒𝐒𝐎𝐍 𝐏𝐋𝐀𝐍\n📒 𝐀𝐧𝐝𝐚𝐥𝐢𝐨 𝐥𝐚 𝐒𝐨𝐦𝐨\n\n📚 𝐒𝐂𝐇𝐄𝐌𝐄𝐒 𝐎𝐅 𝐖𝐎𝐑𝐊\n📁 𝐌𝐚𝐚𝐳𝐢𝐦𝐢𝐨 𝐲𝐚 𝐊𝐚𝐳𝐢\n\n💥 𝐍𝐄𝐖 𝐂𝐔𝐑𝐑𝐈𝐂𝐔𝐋𝐔𝐌 ✨ 𝐌𝐓𝐀𝐀𝐋𝐄 𝐌𝐏𝐘𝐀 2️⃣0️⃣2️⃣6️⃣\n\n✅ 𝐅𝐨𝐫 𝐏𝐫𝐢𝐦𝐚𝐫𝐲 & 𝐒𝐞𝐜𝐨𝐧𝐝𝐚𝐫𝐲 𝐓𝐞𝐚𝐜𝐡𝐞𝐫𝐬\n✅ 𝐅𝐨𝐫 𝐄𝐧𝐠𝐥𝐢𝐬𝐡 & 𝐒𝐰𝐚𝐡𝐢𝐥𝐢 𝐦𝐞𝐝𝐢𝐮𝐦 𝐬𝐜𝐡𝐨𝐨𝐥𝐬\n👉 𝐍𝐨 𝐑𝐞𝐠𝐢𝐬𝐭𝐫𝐚𝐭𝐢𝐨𝐧 · 𝐍𝐨 𝐒𝐢𝐠𝐧 𝐔𝐩 · 𝐍𝐨 𝐋𝐨𝐠 𝐈𝐧\n\nEvery device works — 𝐢𝐏𝐡𝐨𝐧𝐞𝐬, 𝐰𝐞𝐛 𝐛𝐫𝐨𝐰𝐬𝐞𝐫𝐬, 𝐝𝐞𝐬𝐤𝐭𝐨𝐩, 𝐥𝐚𝐩𝐭𝐨𝐩, any 𝐏𝐂:\n👉 https://kaka-doctor.github.io/teachers-lesson-plan-tz/\n\nOr get the 𝐀𝐩𝐩 on 𝐏𝐥𝐚𝐲𝐒𝐭𝐨𝐫𝐞:\n👉 https://play.google.com/store/apps/details?id=teachers.lessonplan\n\n#TeachersTz #LessonPlans #SchemesOfWork #TIEbooks #PrimaryAndSecondary",
+        "fb": {
+          "id": "122142671613190335"
+        }
+      }
     }
   },
   "rotation": {
-    "photoIndex": 4,
-    "captionIndex": 1
+    "photoIndex": 5,
+    "captionIndex": 2
   },
   "events": [
     {
@@ -460,6 +472,13 @@
       "date": "2026-09-29",
       "slot": "06:00",
       "message": "06:00 Auto: published (IG catch-up of Meta-scheduled slot) — \"Picsart_25-09-04_02-51-21-749.jpg\" | IG ✓ | FB ✓ Meta"
+    },
+    {
+      "ts": "2026-09-29T23:41:22.215Z",
+      "level": "info",
+      "date": "2026-10-02",
+      "slot": "06:00",
+      "message": "06:00 FB half pre-scheduled via Meta (publishes 2026-10-02T03:00:00.000Z) — \"825292401_4540751546191558_5861245752872866254_n.webp.jpg\"; IG half to be posted by a landed run in the catch-up window"
     }
   ]
 }
