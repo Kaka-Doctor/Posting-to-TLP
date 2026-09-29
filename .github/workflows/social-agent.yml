@@ -12,11 +12,17 @@ name: Social Media Agent
 #    • "13,43 * * * *" — 30-min heartbeat around the clock (off-peak minutes
 #      — GitHub drops scheduled runs at peak minutes when Actions load is
 #      high). Retries for a missed IG half land on these fires within the
-#      240-min catch-up window (06:00-10:00 EAT, "graceMinutes" in
-#      data/config.json — the SAME 4-hour window Biblia Tafsiri Mbalimbali
-#      posts reliably with every day, owner rule 2026-09-24); past the
-#      window the day's IG half is skipped (the force button rescues it
-#      manually, posting just the IG half).
+#      420-min catch-up window (06:00-13:00 EAT, ending 10:00 UTC,
+#      "graceMinutes" in data/config.json). WHY 420 (2026-09-29 fix): this
+#      page's 06:00 EAT slot is the EARLIEST of the three pages and GitHub
+#      drops most 03:00-07:00 UTC fires, so the old 240-min window closed
+#      30 min BEFORE the reliable 07:30-09:45 UTC landing cluster — the IG
+#      half then stranded as "FB only". The window now ENDS at 10:00 UTC —
+#      the same window-END time Biblia Tafsiri Mbalimbali reliably posts
+#      within every day, and it CONTAINS the whole landing cluster. Past the
+#      window the day's IG half is skipped — sibling pages force-rescue it
+#      the same afternoon via mutual rescue condition (c), or the force
+#      button posts just the IG half manually.
 #  Beyond that, the timing barely matters: every run that lands PRE-SCHEDULES
 #  the next "scheduleDays" days (default 3) of slots with META'S OWN
 #  scheduled publishing — Meta's servers then publish each post exactly at

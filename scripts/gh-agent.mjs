@@ -15,13 +15,19 @@
  *  publishes each FB post exactly at its slot time. One landed run every ~2
  *  days is enough. The IG half of each slot is posted by the first landed run
  *  SHORTLY AFTER slot time (the workflow's 06:03 EAT punctuality fire → IG at
- *  ~06:04-06:07), with retries bounded to a BIBLIA-SIZED catch-up window
- *  (graceMinutes 240 = 06:00–10:00 EAT — the exact catch-up window Biblia
- *  Tafsiri Mbalimbali posts reliably with every single day; owner rule
- *  2026-09-23 "not at any moment of the same day" still holds, the window is
- *  hard-bounded). Past the window the day's IG half is SKIPPED (slot closes
- *  'partial'; the force button can still rescue it manually) — IG never
- *  posts at arbitrary times of day. A failed IG attempt never closes a slot
+ *  ~06:04-06:07), with retries bounded to a catch-up window sized so it
+ *  CONTAINS the reliable morning landing cluster (graceMinutes 420 =
+ *  06:00–13:00 EAT, ending 10:00 UTC — the same window-END time Biblia
+ *  Tafsiri Mbalimbali reliably posts within every single day. The 06:00 EAT
+ *  slot is the EARLIEST of the three pages and GitHub drops most
+ *  03:00–07:00 UTC fires, so a 240-min window closed 30 min BEFORE the
+ *  07:30–09:45 UTC cluster — that was the recurring "FB only" bug, observed
+ *  live 2026-09-29; owner rule 2026-09-23 "not at any moment of the same
+ *  day" still holds — the window is hard-bounded, same-day, morning).
+ *  Past the window the day's IG half is SKIPPED (slot closes 'partial'; the
+ *  sibling pages force-rescue it the same afternoon via mutual rescue
+ *  condition (c), or the force button posts just the IG half manually) — IG
+ *  never posts at arbitrary times of day. A failed IG attempt never closes a slot
  *  (later landed runs retry it inside the window); before retrying, the live
  *  IG feed is scanned for this slot's caption (phantom publish) and for
  *  unknown external posts (the owner's Mon/Wed/Fri 09:00 EAT poster) — both
@@ -32,7 +38,12 @@
  *  in data/config.json) through the GitHub API and dispatches a sibling's
  *  workflow when that sibling has an IG half due but no landed run of its
  *  own — API workflow_dispatches are 100% reliable, unlike cron schedules.
- *  Needs the dispatch token (data/config.json "dispatchToken", fine-grained PAT
+ *  v2 (2026-09-29) adds condition (c): a sibling whose TODAY slot already
+ *  closed 'partial'/'missed' with the IG half missing gets a FORCE dispatch
+ *  (cutoff: slot + grace + 120 min, same afternoon) — the sibling's force
+ *  path posts just the missing IG half, so a lapsed window no longer strands
+ *  the day (that was the 2026-09-29 TLP failure). Needs the dispatch token
+ *  (data/config.json "dispatchToken", fine-grained PAT
  *  with contents:read + actions:write on the sibling repos; a DISPATCH_TOKEN
  *  repo secret would override it). A dispatched run (input rescuedBy)
  *  skips its own sibling check — one hop, no ping-pong.
@@ -1000,11 +1011,13 @@ async function fetchRepoText(full, filePath, token) {
   return Buffer.from(j.content, 'base64').toString('utf8')
 }
 
-async function dispatchSiblingWorkflow(full, token, rescuedBy) {
+async function dispatchSiblingWorkflow(full, token, rescuedBy, force = false) {
+  const inputs = { rescuedBy }
+  if (force) inputs.force = 'true' // boolean-typed workflow input: API takes the string "true"
   const res = await fetch(`https://api.github.com/repos/${full}/actions/workflows/social-agent.yml/dispatches`, {
     method: 'POST',
     headers: { ...ghHeaders(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ref: 'main', inputs: { rescuedBy } }),
+    body: JSON.stringify({ ref: 'main', inputs }),
   })
   if (res.ok) return { ok: true }
   const detail = await res.text().catch(() => '')
@@ -1040,6 +1053,7 @@ async function mutualRescue() {
       const nowS = localNow(tzS)
       const days = stateS.days ?? {}
       let why = null
+      let forceRescue = false
       // (a) a slot that is due RIGHT NOW (inside the sibling's own catch-up
       //     window) whose IG half is still missing — the dispatched run will
       //     publish it immediately
@@ -1057,10 +1071,31 @@ async function mutualRescue() {
           .some((dk) => Object.values(days[dk] ?? {}).some((r) => r && r.status === 'scheduled'))
         if (!booked) why = 'no Meta-scheduled slots for the next 2 days (FB horizon empty)'
       }
+      // (c) TODAY's slot already closed 'partial' (FB live via Meta, IG half
+      //     missing — the sibling's catch-up window lapsed before ANY run
+      //     landed; exactly the 2026-09-29 TLP failure: earliest slot of the
+      //     three pages + GitHub's 03:00-07:00 UTC dead zone) or 'missed'
+      //     (nothing booked at all). Still within the RESCUE EXTENSION
+      //     (slot + grace + 120 min, same calendar afternoon in the sibling's
+      //     timezone): dispatch with force=true — the sibling's force path
+      //     posts JUST the missing IG half right now (both halves for
+      //     'missed'). Past the extension the day stays skipped (manual force
+      //     button only) — IG still never posts at arbitrary times of day.
+      if (!why) {
+        for (const s of slotsS) {
+          const rec = days[nowS.date]?.[s.label]
+          if (!rec || rec.ig?.id || !['partial', 'missed'].includes(rec.status)) continue
+          const since = nowS.minutesOfDay - s.minutes
+          if (since < 0 || since > graceS + 120) continue
+          why = `today's ${s.label} slot is ${rec.status} with the IG half missing (${Math.max(since - graceS, 0)} min past its window) — force rescue`
+          forceRescue = true
+          break
+        }
+      }
       if (why) {
-        const res = await dispatchSiblingWorkflow(full, token, self)
+        const res = await dispatchSiblingWorkflow(full, token, self, forceRescue)
         log(res.ok
-          ? `[rescue] dispatched ${full} — ${why}`
+          ? `[rescue] dispatched ${full}${forceRescue ? ' (FORCE)' : ''} — ${why}`
           : `[rescue] could NOT dispatch ${full} (${res.detail}) — ${why}`)
       } else {
         log(`[rescue] ${full} healthy — no dispatch needed`)
