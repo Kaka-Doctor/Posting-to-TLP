@@ -14,7 +14,7 @@ Drop your photos for posting here.
 - **Size:** any size works — the workflow auto-fixes everything: converts PNG → JPEG, crops to 4:5…1.91:1, scales to max 1440 px wide, upscales too-small images, and commits the fixed files back
 - **Naming:** any filename, e.g. `monday-lesson.jpg`
 
-Photos are used **in rotation** (least-recently-used first), so nothing gets over-posted.
+Photos are posted in **random (shuffled) order** — no repeats until every photo has been used once, then the deck reshuffles and a fresh random cycle begins (owner rule 2026-10-07). New uploads join the undealt part of the current cycle at a random position. To force a reshuffle now, set `"deck": []` inside `"rotation"` in `data/state.json` — the next run deals a fresh cycle.
 
 ## 2. Captions → `data/captions.txt`
 
@@ -65,7 +65,7 @@ This file **is committed to the repo** (which is private) so your deployment wor
 Written and committed **by the GitHub Actions runner** — you never edit it:
 
 - which slots are already posted (per day, per slot)
-- the rotation counters (which photo / caption comes next)
+- the rotation state (the shuffled photo deck + which caption comes next)
 - a rolling event log of the last 100 runs
 
 Deleting this file resets the agent's memory (it would re-post a slot it already did, if still inside the catch-up window). Keep it committed.

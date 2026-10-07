@@ -61,6 +61,13 @@
  *    URL, feed that to the IG container, publish on IG, then delete the hidden
  *    photo. Facebook itself is posted via direct binary upload.
  *
+ *  IMAGE ORDER — shuffled deck (owner rule 2026-10-07, same as Ladies of
+ *  Destiny): photos are posted in RANDOM order and no image repeats until
+ *  every one has been used once; then the deck reshuffles and a fresh random
+ *  cycle begins, forever. New uploads join the undealt part of the current
+ *  cycle at a random position. (Before this rule photos ran in fixed
+ *  filename order via rotation.photoIndex.)
+ *
  *  State lives in data/state.json and is committed back to the repo by the
  *  workflow (which slots are done per day + rotation counters + event log).
  *
@@ -271,6 +278,75 @@ async function loadLibrary() {
     )
   )
   return { photos, captions }
+}
+
+// ── Images: data/photos/ SHUFFLED-DECK rotation (owner rule 2026-10-07) ──────
+// Owner rule (2026-10-07, mirroring Ladies of Destiny 2026-09-29): images must
+// NOT run in name/upload order. Each day's image is drawn from a shuffled
+// deck: RANDOM order, and NO image repeats until EVERY image has been used
+// once — then the deck is reshuffled and a new random cycle begins, forever
+// (like cards: shuffle, deal them all, reshuffle, repeat). The deck records
+// the WHOLE cycle order with a deal position, so a used photo can never be
+// re-dealt within the same cycle. New uploads join the UNDEALT part of the
+// current cycle at a random position (so they don't wait a full cycle);
+// deleted files drop out automatically (the deal position self-adjusts).
+// State: rotation.deck = full shuffled order of the current cycle,
+// rotation.deckPos = how many have been dealt so far,
+// rotation.deckEpoch = current cycle number (log line only). The legacy
+// rotation.photoIndex counter is ignored — the first run with this code
+// starts a brand-new shuffled cycle.
+function shuffle(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+function ensureDeck(state, photos) {
+  const have = new Set(photos ?? [])
+  const oldDeck = Array.isArray(state.rotation.deck) ? state.rotation.deck : []
+  let pos = Number(state.rotation.deckPos ?? 0)
+  if (!Number.isFinite(pos) || pos < 0) pos = 0
+  if (pos > oldDeck.length) pos = oldDeck.length
+  // 1) drop files that no longer exist; a deletion BEFORE the deal position
+  //    shifts the frontier left so already-dealt photos stay dealt
+  const deck = []
+  oldDeck.forEach((f, i) => {
+    if (have.has(f)) deck.push(f)
+    else if (i < pos) pos--
+  })
+  // 2) cycle exhausted (or fresh/empty) → deal a full new shuffled cycle
+  if (pos >= deck.length && have.size > 0) {
+    deck.length = 0
+    deck.push(...shuffle([...have]))
+    pos = 0
+    state.rotation.deckEpoch = Number(state.rotation.deckEpoch ?? 0) + 1
+  }
+  // 3) newly uploaded photos join the UNDEALT part of the current cycle
+  for (const f of shuffle([...have])) {
+    if (!deck.includes(f)) {
+      const at = pos + Math.floor(Math.random() * (deck.length - pos + 1))
+      deck.splice(at, 0, f)
+    }
+  }
+  state.rotation.deck = deck
+  state.rotation.deckPos = pos
+  return deck
+}
+
+function peekPhoto(state, photos) {
+  if (!photos || photos.length === 0) return null
+  const deck = ensureDeck(state, photos)
+  return deck[Number(state.rotation.deckPos ?? 0)] ?? null
+}
+
+function advancePhoto(state, photos) {
+  if (!photos || photos.length === 0) return
+  ensureDeck(state, photos)
+  state.rotation.deckPos = Number(state.rotation.deckPos ?? 0) + 1
+  ensureDeck(state, photos) // cycle exhausted → reshuffle, new cycle begins
 }
 
 // ── State (data/state.json, committed back by the workflow) ─────────────────
@@ -743,7 +819,6 @@ async function main() {
   const horizon = scheduleDays >= 2 ? buildHorizon(state, slots, now, tz, scheduleDays) : []
 
   if (ARG_DRY) {
-    let pi = state.rotation.photoIndex
     if (target) {
       const rec = state.days[target.date ?? now.date]?.[target.label]
       if (target.igOnly) {
@@ -751,9 +826,9 @@ async function main() {
         log('[dry-run] would publish Instagram only right now:')
         log(`  Instagram (${page.igUsername || page.igUserId}): hidden FB photo → CDN url → container → media_publish`)
       } else {
-        const dPhoto = photos[pi % photos.length]
-        log(`[pick] slot ${target.label} on ${target.date ?? now.date} → photo: ${dPhoto} (rotation index ${pi % photos.length} of ${photos.length})`)
-        pi++
+        const dPhoto = peekPhoto(state, photos)
+        log(`[pick] slot ${target.label} on ${target.date ?? now.date} → photo: ${dPhoto} (deck position ${Number(state.rotation.deckPos ?? 0) + 1} of ${state.rotation.deck?.length ?? photos.length}, cycle #${Number(state.rotation.deckEpoch ?? 1)})`)
+        advancePhoto(state, photos) // in-memory only — dry-run never writes state
         log('[dry-run] would publish now:')
         log(`  Instagram (${page.igUsername || page.igUserId}): hidden FB photo → CDN url → container → media_publish`)
         log(`  Facebook (${page.pageName}): binary upload with caption`)
@@ -762,8 +837,8 @@ async function main() {
     if (horizon.length > 0) {
       log(`[dry-run] would pre-schedule ${horizon.length} slot(s) — FB via Meta exactly on time; IG posted later by landed catch-up runs:`)
       for (const h of horizon) {
-        const ph = photos[pi % photos.length]
-        pi++
+        const ph = peekPhoto(state, photos)
+        advancePhoto(state, photos)
         log(`  ${h.dk} ${h.slot.label} → "${ph}" → FB at ${new Date(h.slotUnix).toISOString()} + IG on the next landed run after that`)
       }
     }
@@ -787,9 +862,9 @@ async function main() {
       captionText = existing.caption
       log(`[pick] slot ${slotLabel} on ${dateKey} → IG half of pre-booked slot (photo "${photoFile}" pinned at booking time)`)
     } else {
-      photoFile = photos[state.rotation.photoIndex % photos.length]
+      photoFile = peekPhoto(state, photos)
       captionText = captions[state.rotation.captionIndex % captions.length]
-      log(`[pick] slot ${slotLabel} on ${dateKey} → photo: ${photoFile} (rotation index ${state.rotation.photoIndex % photos.length} of ${photos.length})`)
+      log(`[pick] slot ${slotLabel} on ${dateKey} → photo: ${photoFile} (deck position ${Number(state.rotation.deckPos ?? 0) + 1} of ${state.rotation.deck?.length ?? photos.length}, cycle #${Number(state.rotation.deckEpoch ?? 1)})`)
     }
     const photoPath = path.join(PHOTOS_DIR, photoFile)
     log(`[pick] caption: "${captionText.slice(0, 70).replace(/\n/g, ' ')}…" (${captionText.length} chars)`)
@@ -880,7 +955,7 @@ async function main() {
         // the live FB post consumed this content (non-igOnly case) — advance
         // the rotation so the next slot does not reuse the same photo/caption
         if (photoFile && !target.igOnly) {
-          state.rotation.photoIndex = (state.rotation.photoIndex + 1) % photos.length
+          advancePhoto(state, photos)
           state.rotation.captionIndex = (state.rotation.captionIndex + 1) % captions.length
         }
         recordEvent(state, {
@@ -907,7 +982,7 @@ async function main() {
         if (status !== 'failed') {
           // rotation advanced at booking time for pre-booked slots — not here
           if (!target.igOnly) {
-            state.rotation.photoIndex = (state.rotation.photoIndex + 1) % photos.length
+            advancePhoto(state, photos)
             state.rotation.captionIndex = (state.rotation.captionIndex + 1) % captions.length
           }
         }
@@ -938,7 +1013,7 @@ async function main() {
   if (horizon.length > 0) log(`[schedule] pre-scheduling ${horizon.length} upcoming slot(s) on Facebook via Meta …`)
   let scheduledCount = 0
   for (const h of horizon) {
-    const hPhoto = photos[state.rotation.photoIndex % photos.length]
+    const hPhoto = peekPhoto(state, photos)
     const hCaption = captions[state.rotation.captionIndex % captions.length]
     const hPhotoPath = path.join(PHOTOS_DIR, hPhoto)
     const hISO = new Date(h.slotUnix).toISOString()
@@ -955,7 +1030,7 @@ async function main() {
         fb: { id: fbS.postId },
       }
       state.days[h.dk] = day
-      state.rotation.photoIndex = (state.rotation.photoIndex + 1) % photos.length
+      advancePhoto(state, photos)
       state.rotation.captionIndex = (state.rotation.captionIndex + 1) % captions.length
       recordEvent(state, { level: 'info', date: h.dk, slot: h.slot.label, message: `${h.slot.label} FB half pre-scheduled via Meta (publishes ${hISO}) — "${hPhoto}"; IG half to be posted by a landed run in the catch-up window` })
       scheduledCount++

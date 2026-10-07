@@ -2,7 +2,7 @@
 
 An agent that posts **one photo + one caption** to your **Instagram** and **Facebook Page** — automatically, **3 times a day** (default **6:00 · 12:00 · 18:00** EAT), with a live dashboard to watch everything it does.
 
-- **No AI, no surprises:** each slot takes the photo and caption used the *longest ago* and posts your caption **exactly as written** — nothing is rewritten, nothing is invented
+- **No AI, no surprises:** each slot draws a photo from a **shuffled deck** (random order, no repeats until every photo has been used once, then reshuffled — owner rule 2026-10-07) and posts your caption **exactly as written** — nothing is rewritten, nothing is invented
 - **Content:** drop photos + captions into the [`data/`](./data/README.md) folder, push to GitHub — done
 - **Switch pages anytime:** the target page lives in **one file** (`data/config.json`) — change the `pageId`, push, and the agent re-connects to the new page automatically
 - **Host it 3 ways:** on **GitHub itself** (Actions — recommended, zero external services), or deploy the same repo to **Vercel / Netlify** — your choice
@@ -22,7 +22,7 @@ data/config.json ─┘          │
    18:00 EAT  │  cron hits /api/cron)       │
               └──────────────┬───────────────┘
                              ▼
-        Rotation pick (least-recently-used photo + caption)
+        Shuffled-deck photo pick + rotating caption
                              │
                              ▼
         Instagram (Graph API, 2-step publish) + Facebook Page (/photos)
