@@ -693,6 +693,27 @@ function buildHorizon(state, slots, now, tz, scheduleDays) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function main() {
   const cfg = JSON.parse(await fs.readFile(CONFIG_FILE, 'utf-8'))
+
+  // ── Actions-secrets override (public-repo secret hygiene, owner rule
+  // 2026-10-17): the four Meta credentials below can live in ENCRYPTED
+  // GitHub Actions repo secrets (Settings → Secrets and variables → Actions)
+  // instead of this file — critical now that the repo is PUBLIC (free
+  // unlimited Actions runtime). The workflow passes them as env vars; an
+  // unset secret arrives as an EMPTY string — so a truthiness check, not ??
+  // (the 2026-09-24 empty-env bug). A non-empty env value WINS over the file.
+  // When any env secret is used, the minted-token write-back below never
+  // writes secrets into the (public) config.json.
+  let envSecretsUsed = false
+  for (const [cfgKey, envName] of [
+    ['metaUserToken', 'META_USER_TOKEN'],
+    ['pageAccessToken', 'PAGE_ACCESS_TOKEN'],
+    ['appId', 'META_APP_ID'],
+    ['appSecret', 'META_APP_SECRET'],
+  ]) {
+    const v = String(process.env[envName] ?? '').trim()
+    if (v) { cfg[cfgKey] = v; envSecretsUsed = true }
+  }
+
   const { page, via, tokenFromFile, userToken, sourceToken } = await connect(cfg)
 
   // If we had to mint a page token through the user-token path, persist it
@@ -702,11 +723,20 @@ async function main() {
   // fallback rotation source if it was a real user token).
   if (via === 'exchange') {
     let changed = false
-    if (cfg.pageAccessToken !== page.pageToken) { cfg.pageAccessToken = page.pageToken; changed = true }
+    // Secret hygiene (2026-10-17): when credentials came from Actions
+    // secrets, NEVER write them into the (public) config.json — non-secret
+    // page details below still persist. If the permanent page token rotated,
+    // update the PAGE_ACCESS_TOKEN secret in the repo settings instead.
+    if (envSecretsUsed) {
+      log('[connect] credentials came from Actions secrets — minted token NOT written to the public config.json (update the PAGE_ACCESS_TOKEN secret if it rotated)')
+    }
+    if (!envSecretsUsed) {
+      if (cfg.pageAccessToken !== page.pageToken) { cfg.pageAccessToken = page.pageToken; changed = true }
+      if (userToken && sourceToken && cfg.metaUserToken !== sourceToken) { cfg.metaUserToken = sourceToken; changed = true }
+    }
     if (cfg.pageName !== page.name) { cfg.pageName = page.name; changed = true }
     if (cfg.igUserId !== page.igUserId) { cfg.igUserId = page.igUserId; changed = true }
     if (cfg.igUsername !== page.igUsername) { cfg.igUsername = page.igUsername; changed = true }
-    if (userToken && sourceToken && cfg.metaUserToken !== sourceToken) { cfg.metaUserToken = sourceToken; changed = true }
     if (tokenFromFile) {
       await fs.writeFile(TOKEN_FILE, '')
       log('[connect] data/meta-token.txt cleared (permanent page token saved to data/config.json)')

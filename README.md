@@ -68,7 +68,7 @@ Missed a slot because the server was restarting? The **catch-up window** (`grace
 FB is always punctual (Meta publishes it). IG can't be scheduled via API, so the agent posts it with the first landed run after 06:00 — normally the workflow's **built-in 06:03 EAT punctuality fire**, which lands IG at ~06:04–06:07. For a redundant external backup (useful if GitHub has a bad fire-dropping day — it dropped ten consecutive fires on 2026-09-23), add **one external cron job** that dispatches the workflow — dispatches are 100% reliable (unlike GitHub's own schedule):
 
 1. Create a free account at **cron-job.org** → *Create cron job*
-2. **URL:** `https://api.github.com/repos/Kaka-Doctor/Posting-to-social-medias/actions/workflows/social-agent.yml/dispatches`
+2. **URL:** `https://api.github.com/repos/Kaka-Doctor/Posting-to-TLP/actions/workflows/social-agent.yml/dispatches`
 3. **Schedule:** daily, **06:05** (timezone Africa/Dar_es_Salaam)
 4. **Request:** method `POST` with header `Authorization: Bearer YOUR_GITHUB_PAT` and body `{"ref":"main"}` (cron-job.org calls this "Advanced settings / custom headers"; if it's behind their premium, any scheduler that can POST with a header works — EasyCron, a VPS crontab, etc.)
 5. Recommendation: mint a **minimal** fine-grained PAT for this (only this repo, only **Actions: Read and write**) so the pinger never holds write access to your files.
