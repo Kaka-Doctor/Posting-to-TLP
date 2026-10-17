@@ -490,11 +490,23 @@
           "id": "122145097161190335"
         }
       }
+    },
+    "2026-10-20": {
+      "06:00": {
+        "status": "scheduled",
+        "publishTime": "2026-10-20T03:00:00.000Z",
+        "at": "2026-10-17T21:25:58.567Z",
+        "photo": "825356415_1829728891534079_1077737764383741049_n.webp.jpg",
+        "caption": "🚀 𝐉𝐨𝐢𝐧 𝐭𝐞𝐚𝐜𝐡𝐞𝐫𝐬 𝐚𝐜𝐫𝐨𝐬𝐬 𝐓𝐚𝐧𝐳𝐚𝐧𝐢𝐚 𝐰𝐡𝐨 𝐩𝐫𝐞𝐩𝐚𝐫𝐞 𝐬𝐦𝐚𝐫𝐭𝐞𝐫!\n\n✍️ 𝐓𝐄𝐀𝐂𝐇𝐄𝐑'𝐒 𝐋𝐄𝐒𝐒𝐎𝐍 𝐏𝐋𝐀𝐍 — 📒 𝐀𝐍𝐃𝐀𝐋𝐈𝐎 𝐋𝐀 𝐒𝐎𝐌𝐎\n\nEverything for the 𝐍𝐞𝐰 𝐂𝐮𝐫𝐫𝐢𝐜𝐮𝐥𝐮𝐦 𝟐𝟎𝟐𝟔 (𝐌𝐭𝐚𝐚𝐥𝐚 𝐌𝐩𝐲𝐚):\n\n📚 𝐒𝐜𝐡𝐞𝐦𝐞𝐬 𝐨𝐟 𝐖𝐨𝐫𝐤\n📁 𝐌𝐚𝐚𝐳𝐢𝐦𝐢𝐨 𝐲𝐚 𝐊𝐚𝐳𝐢\n\n✅ 𝐏𝐫𝐢𝐦𝐚𝐫𝐲 & 𝐒𝐞𝐜𝐨𝐧𝐝𝐚𝐫𝐲 · 𝐄𝐧𝐠𝐥𝐢𝐬𝐡 & 𝐒𝐰𝐚𝐡𝐢𝐥𝐢 𝐦𝐞𝐝𝐢𝐮𝐦\n✅ 𝐅𝐫𝐞𝐞 𝐟𝐨𝐫𝐞𝐯𝐞𝐫 — 𝐧𝐨 𝐫𝐞𝐠𝐢𝐬𝐭𝐫𝐚𝐭𝐢𝐨𝐧, 𝐧𝐨 𝐬𝐢𝐠𝐧 𝐮𝐩, 𝐧𝐨 𝐥𝐨𝐠 𝐢𝐧\n\nStart now on any device — click here:\n👉 https://kaka-doctor.github.io/teachers-lesson-plan-tz/\n\nGet the 𝐀𝐩𝐩 on 𝐏𝐥𝐚𝐲𝐒𝐭𝐨𝐫𝐞:\n👉 https://play.google.com/store/apps/details?id=teachers.lessonplan\n\n#TeachersTz #LessonPlans #SchemesOfWork #TIEbooks #PrimaryAndSecondary",
+        "fb": {
+          "id": "122145141309190335"
+        }
+      }
     }
   },
   "rotation": {
     "photoIndex": 12,
-    "captionIndex": 9,
+    "captionIndex": 0,
     "deckEpoch": 1,
     "deck": [
       "image_20260928_191827.jpg",
@@ -550,7 +562,7 @@
       "image_20260928_190503.jpg",
       "825293088_2337438523732998_3370891952041134150_n.webp.jpg"
     ],
-    "deckPos": 10
+    "deckPos": 11
   },
   "events": [
     {
@@ -1077,6 +1089,13 @@
       "date": "2026-10-19",
       "slot": "06:00",
       "message": "06:00 FB half pre-scheduled via Meta (publishes 2026-10-19T03:00:00.000Z) — \"Picsart_25-09-04_09-23-13-446.jpg\"; IG half to be posted by a landed run in the catch-up window"
+    },
+    {
+      "ts": "2026-10-17T21:25:58.567Z",
+      "level": "info",
+      "date": "2026-10-20",
+      "slot": "06:00",
+      "message": "06:00 FB half pre-scheduled via Meta (publishes 2026-10-20T03:00:00.000Z) — \"825356415_1829728891534079_1077737764383741049_n.webp.jpg\"; IG half to be posted by a landed run in the catch-up window"
     }
   ]
 }
