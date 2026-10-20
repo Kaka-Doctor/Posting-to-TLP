@@ -541,11 +541,23 @@
           "id": "122145371673190335"
         }
       }
+    },
+    "2026-10-23": {
+      "06:00": {
+        "status": "scheduled",
+        "publishTime": "2026-10-23T03:00:00.000Z",
+        "at": "2026-10-20T23:24:02.243Z",
+        "photo": "Picsart_26-01-10_22-26-11-615-you-are-doing-this-very-fine-now-give-me-10-more-p-3.jpg",
+        "caption": "✍️ 𝐓𝐄𝐀𝐂𝐇𝐄𝐑'𝐒 𝐋𝐄𝐒𝐒𝐎𝐍 𝐏𝐋𝐀𝐍\n📒 𝐀𝐧𝐝𝐚𝐥𝐢𝐨 𝐥𝐚 𝐒𝐨𝐦𝐨\n\n📣 𝐖𝐚𝐥𝐢𝐦𝐮 𝐰𝐚𝐩𝐞𝐧𝐝𝐰𝐚!\n\nJe, unaandaa 𝐌𝐚𝐚𝐳𝐢𝐦𝐢𝐨 𝐲𝐚 𝐊𝐚𝐳𝐢 ya 𝐌𝐭𝐚𝐚𝐥𝐚 𝐌𝐩𝐲𝐚 𝟐𝟎𝟐𝟔?\nHapa utapata yote — tayari kwa ajili yako:\n\n📚 𝐒𝐜𝐡𝐞𝐦𝐞𝐬 𝐨𝐟 𝐖𝐨𝐫𝐤 / 𝐌𝐚𝐚𝐳𝐢𝐦𝐢𝐨 𝐲𝐚 𝐊𝐚𝐳𝐢\n💥 𝐍𝐞𝐰 𝐂𝐮𝐫𝐫𝐢𝐜𝐮𝐥𝐮𝐦 / 𝐌𝐭𝐚𝐚𝐥𝐚 𝐌𝐩𝐲𝐚\n\n🔴 𝐖𝐚𝐥𝐢𝐦𝐮 𝐰𝐚 𝐏𝐫𝐢𝐦𝐚𝐫𝐲 𝐧𝐚 𝐒𝐞𝐜𝐨𝐧𝐝𝐚𝐫𝐲\n🔴 𝐒𝐡𝐮𝐥𝐞 𝐳𝐚 𝐄𝐧𝐠𝐥𝐢𝐬𝐡 𝐧𝐚 𝐊𝐢𝐬𝐰𝐚𝐡𝐢𝐥𝐢 𝐦𝐞𝐝𝐢𝐮𝐦\n🚫 𝐇𝐚𝐤𝐮𝐧𝐚 𝐮𝐬𝐚𝐣𝐢𝐥𝐢 · 𝐡𝐚𝐤𝐮𝐧𝐚 𝐬𝐢𝐠𝐧 𝐮𝐩 · 𝐡𝐚𝐤𝐮𝐧𝐚 𝐥𝐨𝐠 𝐢𝐧 — 𝐛𝐮𝐫𝐞 𝐤𝐚𝐛𝐢𝐬𝐚!\n\n📲 Fungua kwa simu, tablet, laptop au 𝐏𝐂 yoyote:\n👉 https://kaka-doctor.github.io/teachers-lesson-plan-tz/\n\nAu pakua 𝐀𝐩𝐩 kutoka 𝐏𝐥𝐚𝐲𝐒𝐭𝐨𝐫𝐞:\n👉 https://play.google.com/store/apps/details?id=teachers.lessonplan\n\n#TeachersTz #LessonPlans #SchemesOfWork #TIEbooks #PrimaryAndSecondary",
+        "fb": {
+          "id": "122145485733190335"
+        }
+      }
     }
   },
   "rotation": {
     "photoIndex": 12,
-    "captionIndex": 2,
+    "captionIndex": 3,
     "deckEpoch": 1,
     "deck": [
       "image_20260928_191827.jpg",
@@ -601,7 +613,7 @@
       "image_20260928_190503.jpg",
       "825293088_2337438523732998_3370891952041134150_n.webp.jpg"
     ],
-    "deckPos": 13
+    "deckPos": 14
   },
   "events": [
     {
@@ -1170,6 +1182,13 @@
       "date": "2026-10-20",
       "slot": "06:00",
       "message": "06:00 Auto: published (IG catch-up of Meta-scheduled slot) — \"825356415_1829728891534079_1077737764383741049_n.webp.jpg\" | IG ✓ | FB ✓ Meta"
+    },
+    {
+      "ts": "2026-10-20T23:24:02.243Z",
+      "level": "info",
+      "date": "2026-10-23",
+      "slot": "06:00",
+      "message": "06:00 FB half pre-scheduled via Meta (publishes 2026-10-23T03:00:00.000Z) — \"Picsart_26-01-10_22-26-11-615-you-are-doing-this-very-fine-now-give-me-10-more-p-3.jpg\"; IG half to be posted by a landed run in the catch-up window"
     }
   ]
 }
