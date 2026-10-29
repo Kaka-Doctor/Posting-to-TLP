@@ -694,11 +694,23 @@
           "id": "122146469391190335"
         }
       }
+    },
+    "2026-11-01": {
+      "06:00": {
+        "status": "scheduled",
+        "publishTime": "2026-11-01T03:00:00.000Z",
+        "at": "2026-10-29T22:58:20.051Z",
+        "photo": "image_20260928_193142_1.jpg",
+        "caption": "🎓 New week, new term, fresh 𝐬𝐜𝐡𝐞𝐦𝐞𝐬!\n\n✍️ 𝐓𝐄𝐀𝐂𝐇𝐄𝐑'𝐒 𝐋𝐄𝐒𝐒𝐎𝐍 𝐏𝐋𝐀𝐍\n📒 𝐀𝐧𝐝𝐚𝐥𝐢𝐨 𝐥𝐚 𝐒𝐨𝐦𝐨\n\n📚 𝐒𝐂𝐇𝐄𝐌𝐄𝐒 𝐎𝐅 𝐖𝐎𝐑𝐊\n📁 𝐌𝐚𝐚𝐳𝐢𝐦𝐢𝐨 𝐲𝐚 𝐊𝐚𝐳𝐢\n\n💥 𝐍𝐄𝐖 𝐂𝐔𝐑𝐑𝐈𝐂𝐔𝐋𝐔𝐌 ✨ 𝐌𝐓𝐀𝐀𝐋𝐄 𝐌𝐏𝐘𝐀 2️⃣0️⃣2️⃣6️⃣\n\n✅ 𝐅𝐨𝐫 𝐏𝐫𝐢𝐦𝐚𝐫𝐲 & 𝐒𝐞𝐜𝐨𝐧𝐝𝐚𝐫𝐲 𝐓𝐞𝐚𝐜𝐡𝐞𝐫𝐬\n✅ 𝐅𝐨𝐫 𝐄𝐧𝐠𝐥𝐢𝐬𝐡 & 𝐒𝐰𝐚𝐡𝐢𝐥𝐢 𝐦𝐞𝐝𝐢𝐮𝐦 𝐬𝐜𝐡𝐨𝐨𝐥𝐬\n👉 𝐍𝐨 𝐑𝐞𝐠𝐢𝐬𝐭𝐫𝐚𝐭𝐢𝐨𝐧 · 𝐍𝐨 𝐒𝐢𝐠𝐧 𝐔𝐩 · 𝐍𝐨 𝐋𝐨𝐠 𝐈𝐧\n\nEvery device works — 𝐢𝐏𝐡𝐨𝐧𝐞𝐬, 𝐰𝐞𝐛 𝐛𝐫𝐨𝐰𝐬𝐞𝐫𝐬, 𝐝𝐞𝐬𝐤𝐭𝐨𝐩, 𝐥𝐚𝐩𝐭𝐨𝐩, any 𝐏𝐂:\n👉 https://kaka-doctor.github.io/teachers-lesson-plan-tz/\n\nOr get the 𝐀𝐩𝐩 on 𝐏𝐥𝐚𝐲𝐒𝐭𝐨𝐫𝐞:\n👉 https://play.google.com/store/apps/details?id=teachers.lessonplan\n\n#TeachersTz #LessonPlans #SchemesOfWork #TIEbooks #PrimaryAndSecondary",
+        "fb": {
+          "id": "122146581945190335"
+        }
+      }
     }
   },
   "rotation": {
     "photoIndex": 12,
-    "captionIndex": 1,
+    "captionIndex": 2,
     "deckEpoch": 1,
     "deck": [
       "image_20260928_191827.jpg",
@@ -754,16 +766,9 @@
       "image_20260928_190503.jpg",
       "825293088_2337438523732998_3370891952041134150_n.webp.jpg"
     ],
-    "deckPos": 22
+    "deckPos": 23
   },
   "events": [
-    {
-      "ts": "2026-09-20T03:06:46.763Z",
-      "level": "success",
-      "date": "2026-09-20",
-      "slot": "06:00",
-      "message": "06:00 Auto: published — \"Picsart_25-09-04_02-50-15-437.jpg\" | IG ✓ | FB ✓"
-    },
     {
       "ts": "2026-09-20T09:18:29.654Z",
       "level": "success",
@@ -1456,6 +1461,13 @@
       "date": "2026-10-29",
       "slot": "06:00",
       "message": "06:00 Auto: published (IG catch-up of Meta-scheduled slot) — \"829604278_1075611971762275_3881253717110090282_n.webp.jpg\" | IG ✓ | FB ✓ Meta"
+    },
+    {
+      "ts": "2026-10-29T22:58:20.052Z",
+      "level": "info",
+      "date": "2026-11-01",
+      "slot": "06:00",
+      "message": "06:00 FB half pre-scheduled via Meta (publishes 2026-11-01T03:00:00.000Z) — \"image_20260928_193142_1.jpg\"; IG half to be posted by a landed run in the catch-up window"
     }
   ]
 }
